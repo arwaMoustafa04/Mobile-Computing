@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@android:color/black">
+
+    <!-- Top Search Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical">
+
+        <EditText
+            android:id="@+id/searchBar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Search songs"
+            android:layout_marginEnd="8dp"
+            android:padding="10dp"
+            android:background="@android:drawable/editbox_background" />
+
+        <Button
+            android:id="@+id/cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="cancel"
+            android:backgroundTint="@color/black"
+            android:textColor="@color/white" />
+    </LinearLayout>
+
+    <!-- The "Greedy" RecyclerView that pushes everything else down -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"/>
+
+    <!-- Bottom Navigation Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:background="@drawable/border_background"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical">
+
+        <ImageButton
+            android:id="@+id/profileBtn"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:src="@drawable/profile"
+            android:scaleType="centerInside"
+            android:contentDescription="Profile" />
+
+        <ImageView
+            android:id="@+id/searchBtn"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:scaleType="centerInside"
+            android:src="@drawable/search_clicked"
+            android:contentDescription="Search" />
+
+        <ImageButton
+            android:id="@+id/libraryBtn"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:src="@drawable/library"
+            android:scaleType="centerInside"
+            android:contentDescription="Library" />
+
+    </LinearLayout>
+
+</LinearLayout>
