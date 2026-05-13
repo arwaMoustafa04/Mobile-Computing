@@ -59,6 +59,7 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.8.0")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation(libs.engage.core)
     "kapt"("com.github.bumptech.glide:compiler:4.16.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -66,4 +67,9 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-storage")
+    implementation("androidx.navigation:navigation-fragment-ktx:2.9.0")
+    implementation("androidx.navigation:navigation-ui-ktx:2.9.0")
+    implementation("androidx.room:room-runtime:2.7.1")
+    implementation("androidx.room:room-ktx:2.7.1")
+    kapt("androidx.room:room-compiler:2.7.1")
 }
