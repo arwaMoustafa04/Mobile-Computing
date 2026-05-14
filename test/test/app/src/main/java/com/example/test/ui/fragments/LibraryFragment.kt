@@ -8,6 +8,7 @@ import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.PopupMenu
 import androidx.fragment.app.Fragment
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -25,10 +26,14 @@ import kotlinx.coroutines.launch
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.local.database.AppDatabase
 import android.widget.Toast
+import androidx.lifecycle.ViewModelProvider
 import com.example.test.MainActivity
+import com.example.test.data.repository.MusicRepository
+import com.example.test.data.ui.MusicViewModel
+import com.example.test.data.ui.MusicViewModelFactory
 
 class LibraryFragment : Fragment() {
-
+    private lateinit var viewModel: MusicViewModel
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_ENDED) {
@@ -37,6 +42,7 @@ class LibraryFragment : Fragment() {
         }
     }
 
+    private var librarySongs = mutableListOf<Song>()
     private var _binding: FragmentLibraryBinding? = null
     private val binding get() = _binding!!
 
@@ -53,7 +59,7 @@ class LibraryFragment : Fragment() {
     }
 
     private fun playNextSongAutomatically() {
-        val list = MusicPlayerManager.fullSongList
+        val list = MusicPlayerManager.playingList
         if (list.isNotEmpty()) {
             val nextIndex = (MusicPlayerManager.currentSongIndex + 1) % list.size
             playSong(list[nextIndex])
@@ -62,6 +68,16 @@ class LibraryFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        val database = AppDatabase.getDatabase(requireContext())
+        val repository = MusicRepository(database.songDao(), database.playlistDao())
+
+        // 2. Initialize ViewModel using the Factory
+        val factory = MusicViewModelFactory(repository)
+        viewModel = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
+
+        // 3. Update your Add Click logic to use the ViewModel
+        setupAdapter()
 
         // Listener to refresh yellow highlights when song changes globally
         MusicPlayerManager.player.addListener(object : Player.Listener {
@@ -73,13 +89,35 @@ class LibraryFragment : Fragment() {
         adapter = SongAdapter(
             songs = emptyList(),
             onSongClick = { song -> playSong(song) },
-            onAddClick = { song ->
-                lifecycleScope.launch {
-                    val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, "test_playlist")
-                    AppDatabase.getDatabase(requireContext()).songDao().addSong(entity)
-                    Toast.makeText(requireContext(), "Added to Playlist!", Toast.LENGTH_SHORT).show()
+            onAddClick = { song, anchorView -> // Now receiving the view as an anchor
+                // 1. Create the PopupMenu
+                val popup = androidx.appcompat.widget.PopupMenu(requireContext(), anchorView)
+                popup.menuInflater.inflate(R.menu.menu_song_options, popup.menu)
+
+                // 2. Handle the clicks
+                popup.setOnMenuItemClickListener { item ->
+                    when (item.itemId) {
+                        R.id.action_add_to_playlist -> {
+                            // Your existing Room logic
+                            lifecycleScope.launch {
+                                val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, "test_playlist")
+                                AppDatabase.getDatabase(requireContext()).songDao().addSong(entity)
+                                Toast.makeText(requireContext(), "${song.title} added to Playlist!", Toast.LENGTH_SHORT).show()
+                            }
+                            true
+                        }
+                        R.id.action_add_to_queue -> {
+                            // New Queue logic
+                            MusicPlayerManager.queue.add(song)
+                            Toast.makeText(requireContext(), "${song.title} added to Queue (Play Next)", Toast.LENGTH_SHORT).show()
+                            true
+                        }
+                        else -> false
+                    }
                 }
-            }
+                popup.show()
+            },
+            showAddButton = true
         )
 
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -99,33 +137,31 @@ class LibraryFragment : Fragment() {
 
     private fun fetchSongsFromFirebase() {
         db.collection("songs").get().addOnSuccessListener { result ->
-            fullSongList.clear()
+            librarySongs.clear()
             for (document in result) {
                 val song = document.toObject(Song::class.java)
-                fullSongList.add(song)
+                librarySongs.add(song)
             }
-            MusicPlayerManager.fullSongList = fullSongList
-            adapter.updateSongs(fullSongList)
+            // ONLY update the adapter, NOT the MusicPlayerManager.activePlaybackList
+            adapter.updateSongs(librarySongs)
         }
     }
 
     private fun playSong(song: Song) {
         if (!MusicPlayerManager.isInitialized()) return
-        val player = MusicPlayerManager.player
 
-        // Update the Manager's state
+        // NOW we commit the library as the active playback list because the user clicked it
+        MusicPlayerManager.activePlaybackList = librarySongs.toMutableList()
+
         MusicPlayerManager.currentSong = song
-        MusicPlayerManager.currentSongIndex = fullSongList.indexOf(song)
+        MusicPlayerManager.currentSongIndex = librarySongs.indexOf(song)
 
         val mediaItem = MediaItem.fromUri(song.audioUrl)
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.play()
+        MusicPlayerManager.player.setMediaItem(mediaItem)
+        MusicPlayerManager.player.prepare()
+        MusicPlayerManager.player.play()
 
-        // Refresh the adapter so the text turns yellow
         adapter.notifyDataSetChanged()
-
-        // Tell MainActivity to refresh the global mini-player views
         (activity as? MainActivity)?.updateMiniPlayerUI()
     }
 
@@ -158,6 +194,44 @@ class LibraryFragment : Fragment() {
         }
     }
 
+    private fun setupAdapter() {
+        // 1. Initialize the adapter with your song list and click logic
+        adapter = SongAdapter(
+            songs = fullSongList,
+            onSongClick = { song -> playSong(song) },
+            onAddClick = { song, anchorView ->
+                showPopup(song, anchorView)
+            }
+        )
+
+        // 2. Set the LayoutManager (Vertical list is standard for music apps)
+        binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
+
+        // 3. Attach the adapter to the RecyclerView
+        binding.recyclerView.adapter = adapter
+    }
+
+    private fun showPopup(song: Song, anchorView: View) {
+        val popup = PopupMenu(requireContext(), anchorView)
+        popup.menuInflater.inflate(R.menu.menu_song_options, popup.menu)
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_add_to_playlist -> {
+                    // USE VIEWMODEL INSTEAD OF DIRECT DAO CALL
+                    val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, "test_playlist")
+                    viewModel.addSongToPlaylist(entity)
+                    Toast.makeText(requireContext(), "Added!", Toast.LENGTH_SHORT).show()
+                    true
+                }
+                R.id.action_add_to_queue -> {
+                    MusicPlayerManager.queue.add(song)
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()

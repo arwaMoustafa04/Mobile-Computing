@@ -2,6 +2,7 @@ package com.example.test
 
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
@@ -12,6 +13,7 @@ import com.example.test.player.MusicPlayerManager
 import com.example.test.ui.fragments.PlayerFragment
 import androidx.media3.common.Player
 import androidx.media3.common.MediaItem
+import com.example.musicplayer.Song
 import com.example.test.ui.fragments.PlaylistDetailFragment
 
 class MainActivity : AppCompatActivity() {
@@ -53,7 +55,7 @@ class MainActivity : AppCompatActivity() {
 
         // Set up navigation clicks for the bottom bar
         binding.libraryBtn.setOnClickListener {
-            navigateToLibrary()
+            //set up logic later
         }
         
         binding.searchBtn.setOnClickListener {
@@ -163,30 +165,67 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playNextSong() {
-        val list = MusicPlayerManager.fullSongList
-        if (list.isNotEmpty()) {
-            val nextIndex = (MusicPlayerManager.currentSongIndex + 1) % list.size
-            playSongAt(nextIndex)
+        val manager = MusicPlayerManager
+
+        // 1. Check if there's anything in the Queue first
+        if (manager.queue.isNotEmpty()) {
+            val nextQueuedSong = manager.queue.removeAt(0)
+            manager.currentSong = nextQueuedSong
+
+            // IMPORTANT: We do NOT increment currentSongIndex here.
+            // It stays at 'i' so the app remembers where we were in the playlist.
+            startPlayback(nextQueuedSong)
+        }
+        // 2. If Queue is empty, move to the next song in the playlist
+        else if (manager.activePlaybackList.isNotEmpty()) {
+            manager.currentSongIndex = (manager.currentSongIndex + 1) % manager.activePlaybackList.size
+            val nextSong = manager.activePlaybackList[manager.currentSongIndex]
+            manager.currentSong = nextSong
+            startPlayback(nextSong)
         }
     }
 
-    private fun playPreviousSong() {
-        val list = MusicPlayerManager.fullSongList
-        if (list.isNotEmpty()) {
-            var prevIndex = MusicPlayerManager.currentSongIndex - 1
-            if (prevIndex < 0) prevIndex = list.size - 1
-            playSongAt(prevIndex)
-        }
-    }
-
-    private fun playSongAt(index: Int) {
-        val song = MusicPlayerManager.fullSongList[index]
-        MusicPlayerManager.currentSong = song
-        MusicPlayerManager.currentSongIndex = index
-
+    private fun startPlayback(song: Song) {
         val mediaItem = MediaItem.fromUri(song.audioUrl)
         MusicPlayerManager.player.setMediaItem(mediaItem)
         MusicPlayerManager.player.prepare()
         MusicPlayerManager.player.play()
+        updateMiniPlayerUI()
+    }
+
+    private fun playPreviousSong() {
+        val manager = MusicPlayerManager
+        val player = manager.player
+
+        // 1. Safety Check: If player isn't ready, don't do anything
+        if (!manager.isInitialized()) return
+
+        // 2. Standard Behavior: If song is > 3 seconds, restart it instead of skipping
+        if (player.currentPosition > 3000) {
+            player.seekTo(0)
+            return
+        }
+
+        // 3. Logic Fix: Use activePlaybackList (The source of truth)
+        if (manager.activePlaybackList.isNotEmpty()) {
+
+            // Calculate the new index
+            var newIndex = manager.currentSongIndex - 1
+
+            // If we go below 0, wrap around to the end of the list
+            if (newIndex < 0) {
+                newIndex = manager.activePlaybackList.size - 1
+            }
+
+            // Update the Manager's state
+            manager.currentSongIndex = newIndex
+            val prevSong = manager.activePlaybackList[newIndex]
+            manager.currentSong = prevSong
+
+            // Start playing
+            startPlayback(prevSong)
+        } else {
+            Toast.makeText(this, "No playlist active", Toast.LENGTH_SHORT).show()
+        }
     }
 }

@@ -99,7 +99,7 @@ class PlayerFragment : Fragment() {
 
     // 3. Extracted these to functions so the Listener can use them
     private fun playNextSong() {
-        val list = MusicPlayerManager.fullSongList
+        val list = MusicPlayerManager.playingList
         if (list.isNotEmpty()) {
             val nextIndex = (MusicPlayerManager.currentSongIndex + 1) % list.size
             playSpecificSong(list[nextIndex], nextIndex)
@@ -107,7 +107,7 @@ class PlayerFragment : Fragment() {
     }
 
     private fun playPreviousSong() {
-        val list = MusicPlayerManager.fullSongList
+        val list = MusicPlayerManager.playingList
         if (list.isNotEmpty()) {
             var prevIndex = MusicPlayerManager.currentSongIndex - 1
             if (prevIndex < 0) prevIndex = list.size - 1

@@ -14,8 +14,8 @@ class SongAdapter(
     private val showAddButton: Boolean = true,
     private var songs: List<Song>,
     private val onSongClick: (Song) -> Unit,
-    private val onAddClick: ((Song) -> Unit)? = null
-
+    private val onAddClick: ((Song, View) -> Unit)? = null,
+    private val onOptionsClick: ((Song, View) -> Unit)? = null
 ) : RecyclerView.Adapter<SongAdapter.SongViewHolder>() {
 
     private var playingSongUrl: String? = null
@@ -69,14 +69,30 @@ class SongAdapter(
             notifyDataSetChanged()
         }
 
-        // 5. Add Button Logic
-        holder.binding.btnAddSong.visibility = if (showAddButton) View.VISIBLE else View.GONE
-        holder.binding.btnAddSong.setOnClickListener {
-            onAddClick?.invoke(song)
+        // 5. Action Button Logic
+        if (showAddButton) {
+            holder.binding.btnAddSong.visibility = View.VISIBLE
+            holder.binding.btnAddSong.setImageResource(R.drawable.add_better)
+            holder.binding.btnAddSong.setOnClickListener {
+                onAddClick?.invoke(song, it)
+            }
+        } else if (onOptionsClick != null) {
+            holder.binding.btnAddSong.visibility = View.VISIBLE
+            // Use the 'more' icon for options
+            holder.binding.btnAddSong.setImageResource(R.drawable.more)
+            holder.binding.btnAddSong.setOnClickListener {
+                onOptionsClick.invoke(song, it)
+            }
+        } else {
+            holder.binding.btnAddSong.visibility = View.GONE
         }
     }
 
     override fun getItemCount(): Int = songs.size
+
+    fun getSongs(): List<Song> {
+        return songs
+    }
 
     fun updateSongs(newSongs: List<Song>) {
         songs = newSongs

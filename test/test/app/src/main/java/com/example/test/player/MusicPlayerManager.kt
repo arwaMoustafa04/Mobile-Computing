@@ -9,9 +9,14 @@ object MusicPlayerManager {
     val player: ExoPlayer
         get() = _player ?: throw IllegalStateException("Player not initialized. Call initialize(context) first.")
 
+    var activePlaybackList = mutableListOf<Song>()
     var currentSong: Song? = null
     var currentSongIndex: Int = -1
-    var fullSongList: List<Song> = emptyList()
+    
+    // The list that is currently being played from
+    var playingList: List<Song> = emptyList()
+
+    val queue = mutableListOf<Song>()
 
     fun initialize(context: Context) {
         if (_player == null) {
