@@ -1,15 +1,18 @@
 package com.example.test.ui.fragments
 
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.lifecycle.lifecycleScope
+import androidx.appcompat.widget.PopupMenu
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -19,21 +22,13 @@ import com.example.test.MainActivity
 import com.example.test.R
 import com.example.test.SongAdapter
 import com.example.test.data.local.database.AppDatabase
-import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.model.Playlist
-import com.example.test.databinding.FragmentPlaylistDetailBinding
-import com.example.test.player.MusicPlayerManager
-import kotlinx.coroutines.launch
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.widget.Button
-import android.widget.Toast
-import androidx.appcompat.widget.PopupMenu
-import androidx.lifecycle.ViewModelProvider
 import com.example.test.data.repository.MusicRepository
 import com.example.test.data.ui.MusicViewModel
 import com.example.test.data.ui.MusicViewModelFactory
+import com.example.test.databinding.FragmentPlaylistDetailBinding
+import com.example.test.player.MusicPlayerManager
 
 class PlaylistDetailFragment : Fragment() {
 
@@ -41,10 +36,9 @@ class PlaylistDetailFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var viewModel: MusicViewModel
-    private val timerHandler = Handler(Looper.getMainLooper())
     private lateinit var adapter: SongAdapter
+    private var playerListener: Player.Listener? = null
     
-    // Local state for the playlist metadata being edited or displayed
     private var currentPlaylistMetadata = Playlist(
         id = "test_playlist",
         name = "My Summer Hits",
@@ -59,7 +53,6 @@ class PlaylistDetailFragment : Fragment() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            // Update local state and UI immediately, will be saved to DB on "Save" click
             currentPlaylistMetadata = currentPlaylistMetadata.copy(imageUrl = uri.toString())
             updateUI(currentPlaylistMetadata.name, currentPlaylistMetadata.imageUrl)
         }
@@ -73,7 +66,6 @@ class PlaylistDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize ViewModel
         val database = AppDatabase.getDatabase(requireContext())
         val repository = MusicRepository(database.songDao(), database.playlistDao())
         val factory = MusicViewModelFactory(repository)
@@ -82,11 +74,9 @@ class PlaylistDetailFragment : Fragment() {
         setupRecyclerView()
         setupObservers()
 
-        // Load initial data
         viewModel.loadPlaylist("test_playlist")
         viewModel.loadSongs("test_playlist")
 
-        // Listeners
         binding.btnAddSong.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, LibraryFragment())
@@ -98,19 +88,32 @@ class PlaylistDetailFragment : Fragment() {
             showEditDialog()
         }
 
-        MusicPlayerManager.player.addListener(object : Player.Listener {
+        // Safety check for asynchronous player initialization
+        if (MusicPlayerManager.isInitialized()) {
+            attachPlayerListeners()
+        } else {
+            MusicPlayerManager.initialize(requireContext()) {
+                if (isAdded) attachPlayerListeners()
+            }
+        }
+    }
+
+    private fun attachPlayerListeners() {
+        playerListener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 adapter.notifyDataSetChanged()
             }
-        })
+        }
+        MusicPlayerManager.player.addListener(playerListener!!)
     }
 
     private fun setupRecyclerView() {
         adapter = SongAdapter(
             songs = emptyList(),
             onSongClick = { song ->
-                val index = MusicPlayerManager.playingList.indexOf(song)
-                playPlaylistSong(song, index)
+                val songs = adapter.getSongs()
+                val index = songs.indexOf(song)
+                playPlaylistSongs(songs, index)
             },
             onAddClick = null,
             showAddButton = false,
@@ -135,15 +138,8 @@ class PlaylistDetailFragment : Fragment() {
                     true
                 }
                 "Remove from Playlist" -> {
-                    val entity = SongEntity(
-                        audioUrl = song.audioUrl,
-                        title = song.title,
-                        artist = song.artist,
-                        imageUrl = song.imageUrl,
-                        playlistId = "test_playlist"
-                    )
+                    val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, "test_playlist")
                     viewModel.removeSongFromPlaylist(entity)
-                    Toast.makeText(requireContext(), "${song.title} removed", Toast.LENGTH_SHORT).show()
                     true
                 }
                 else -> false
@@ -153,7 +149,6 @@ class PlaylistDetailFragment : Fragment() {
     }
 
     private fun setupObservers() {
-        // Observe Playlist metadata
         viewModel.playlist.observe(viewLifecycleOwner) { entity ->
             entity?.let {
                 currentPlaylistMetadata = Playlist(it.id, it.name, it.imageUrl)
@@ -161,11 +156,9 @@ class PlaylistDetailFragment : Fragment() {
             }
         }
 
-        // Observe Songs
         viewModel.songs.observe(viewLifecycleOwner) { dbSongs ->
             val songList = dbSongs.map { Song(it.title, it.artist, it.imageUrl, it.audioUrl) }
             adapter.updateSongs(songList)
-            MusicPlayerManager.playingList = songList
         }
     }
 
@@ -177,26 +170,12 @@ class PlaylistDetailFragment : Fragment() {
             .into(binding.playlistArt)
     }
 
-    private fun playPlaylistSong(song: Song, index: Int) {
+    private fun playPlaylistSongs(songs: List<Song>, index: Int) {
         if (!MusicPlayerManager.isInitialized()) return
 
-        // 1. LOCK the playback list to the items currently in the adapter.
-        // This ensures that even if you navigate to the Library screen,
-        // the "Next" button in MainActivity still sees the Playlist songs.
-        MusicPlayerManager.activePlaybackList = adapter.getSongs().toMutableList()
+        // Use the centralized playPlaylist logic which loads ALL songs into the player
+        MusicPlayerManager.playPlaylist(songs, index)
 
-        // 2. Set the state
-        MusicPlayerManager.currentSong = song
-        MusicPlayerManager.currentSongIndex = index
-
-        // 3. Start playback
-        val player = MusicPlayerManager.player
-        val mediaItem = MediaItem.fromUri(song.audioUrl)
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.play()
-
-        // 4. Refresh UI
         adapter.notifyDataSetChanged()
         (activity as? MainActivity)?.updateMiniPlayerUI()
     }
@@ -219,8 +198,6 @@ class PlaylistDetailFragment : Fragment() {
             if (newName.isNotEmpty()) {
                 viewModel.updatePlaylist("test_playlist", newName, currentPlaylistMetadata.imageUrl)
                 dialog.dismiss()
-            } else {
-                Toast.makeText(requireContext(), "Name cannot be empty", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -232,6 +209,9 @@ class PlaylistDetailFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        if (MusicPlayerManager.isInitialized() && playerListener != null) {
+            MusicPlayerManager.player.removeListener(playerListener!!)
+        }
         _binding = null
     }
 }
