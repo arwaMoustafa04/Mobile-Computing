@@ -2,6 +2,7 @@ package com.example.test
 
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
@@ -13,6 +14,7 @@ import com.example.test.ui.fragments.PlayerFragment
 import androidx.media3.common.Player
 import androidx.media3.common.MediaItem
 import com.example.musicplayer.Song
+import com.example.test.ui.fragments.ProfileFragment
 import com.example.test.ui.fragments.PlaylistDetailFragment
 
 class MainActivity : AppCompatActivity() {
@@ -29,7 +31,7 @@ class MainActivity : AppCompatActivity() {
         MusicPlayerManager.initialize(this) {
             setupGlobalPlayer()
             updateMiniPlayerUI()
-            
+
             if (savedInstanceState == null) {
                 navigateToLibrary()
             }
@@ -38,12 +40,15 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
             override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
                 super.onFragmentResumed(fm, f)
-                
+
+                // Update bottom navigation based on the current fragment
                 when (f) {
                     is LibraryFragment -> updateBottomNav("LIBRARY")
                     is PlaylistDetailFragment -> updateBottomNav("PLAYLIST")
+                    is ProfileFragment -> updateBottomNav("PROFILE")
                 }
 
+                // Manage mini player visibility
                 if (f is PlayerFragment) {
                     binding.miniPlayer.visibility = View.GONE
                 } else {
@@ -52,8 +57,20 @@ class MainActivity : AppCompatActivity() {
             }
         }, false)
 
-        binding.searchBtn.setOnClickListener { navigateToLibrary() }
-        binding.profileBtn.setOnClickListener { updateBottomNav("PROFILE") }
+
+
+        // Set up navigation clicks for the bottom bar
+        binding.libraryBtn.setOnClickListener {
+            //set up logic later
+        }
+
+        binding.searchBtn.setOnClickListener {
+            navigateToLibrary() // Assuming LibraryFragment contains the search functionality
+        }
+
+        binding.profileBtn.setOnClickListener {
+            navigateToProfile()
+        }
     }
 
     private fun navigateToLibrary() {
@@ -61,11 +78,20 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, LibraryFragment())
             .commit()
     }
+    private fun navigateToProfile() {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, ProfileFragment())
+            .addToBackStack(null)
+            .commit()
+    }
 
     fun updateBottomNav(selectedTab: String) {
+        // 1. Reset all icons to their default state (gray)
         binding.searchBtn.setImageResource(R.drawable.search)
         binding.libraryBtn.setImageResource(R.drawable.library)
         binding.profileBtn.setImageResource(R.drawable.profile)
+
+        // 2. Highlight only the active tab if necessary
         when (selectedTab) {
             "LIBRARY" -> binding.searchBtn.setImageResource(R.drawable.search_clicked)
             "PROFILE" -> binding.profileBtn.setImageResource(R.drawable.profile_clicked)
@@ -104,7 +130,7 @@ class MainActivity : AppCompatActivity() {
                 player.seekTo(0, 0)
             }
         }
-        
+
         binding.btnPrev.setOnClickListener {
             if (player.currentPosition > 3000) {
                 player.seekTo(0)
@@ -137,7 +163,7 @@ class MainActivity : AppCompatActivity() {
             binding.miniPlayer.visibility = View.VISIBLE
             binding.miniSongTitle.text = currentSong.title
             binding.miniArtistName.text = currentSong.artist
-            
+
             Glide.with(this)
                 .load(currentSong.imageUrl)
                 .placeholder(R.drawable.placeholder_image)

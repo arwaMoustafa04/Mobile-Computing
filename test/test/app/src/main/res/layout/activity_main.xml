@@ -19,12 +19,14 @@
         android:background="#1A1A1A"
         android:padding="8dp"
         android:gravity="center_vertical"
-        android:visibility="gone"> <ImageView
-        android:id="@+id/miniAlbumArt"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:scaleType="centerCrop"
-        android:src="@drawable/placeholder_image" />
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/miniAlbumArt"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/placeholder_image" />
 
         <LinearLayout
             android:layout_width="0dp"
