@@ -41,14 +41,14 @@ class MainActivity : AppCompatActivity() {
             override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
                 super.onFragmentResumed(fm, f)
 
-
+                // Update bottom navigation based on the current fragment
                 when (f) {
                     is LibraryFragment -> updateBottomNav("LIBRARY")
                     is PlaylistDetailFragment -> updateBottomNav("PLAYLIST")
                     is ProfileFragment -> updateBottomNav("PROFILE")
-                    is AIPlaylistFragment -> updateBottomNav("AI_PLAYLIST") // Track your custom screen state
                 }
 
+                // Manage mini player visibility
                 if (f is PlayerFragment) {
                     binding.miniPlayer.visibility = View.GONE
                 } else {
@@ -58,12 +58,14 @@ class MainActivity : AppCompatActivity() {
         }, false)
 
 
+
+        // Set up navigation clicks for the bottom bar
         binding.libraryBtn.setOnClickListener {
-            navigateToAiPlaylist()
+            //set up logic later
         }
 
         binding.searchBtn.setOnClickListener {
-            navigateToLibrary()
+            navigateToLibrary() // Assuming LibraryFragment contains the search functionality
         }
 
         binding.profileBtn.setOnClickListener {
@@ -76,7 +78,6 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, LibraryFragment())
             .commit()
     }
-
     private fun navigateToProfile() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, ProfileFragment())
@@ -84,25 +85,16 @@ class MainActivity : AppCompatActivity() {
             .commit()
     }
 
-
-    private fun navigateToAiPlaylist() {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, AIPlaylistFragment())
-            .addToBackStack(null)
-            .commit()
-    }
-
     fun updateBottomNav(selectedTab: String) {
-
+        // 1. Reset all icons to their default state (gray)
         binding.searchBtn.setImageResource(R.drawable.search)
         binding.libraryBtn.setImageResource(R.drawable.library)
         binding.profileBtn.setImageResource(R.drawable.profile)
 
-
+        // 2. Highlight only the active tab if necessary
         when (selectedTab) {
             "LIBRARY" -> binding.searchBtn.setImageResource(R.drawable.search_clicked)
             "PROFILE" -> binding.profileBtn.setImageResource(R.drawable.profile_clicked)
-            "AI_PLAYLIST" -> binding.libraryBtn.setImageResource(R.drawable.library_clicked) // Highlights the library button when AI is open
         }
     }
 
