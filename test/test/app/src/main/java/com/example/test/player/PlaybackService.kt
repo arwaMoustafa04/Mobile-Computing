@@ -42,11 +42,22 @@ class PlaybackService : MediaSessionService() {
                     controller: MediaSession.ControllerInfo,
                     mediaItems: List<MediaItem>
                 ): ListenableFuture<List<MediaItem>> {
-                    // IMPORTANT: Restore the URI from MediaId so the background player can stream the song.
-                    // URIs are stripped when MediaItems travel from the UI to the Service.
+                    // Inside PlaybackService.kt -> onAddMediaItems
                     val updatedItems = mediaItems.map { item ->
+                        val actualUrl = if (item.mediaId.startsWith("media_queue_")) {
+                            // This logic is safer: it removes ONLY the known prefix and the timestamp
+                            // It looks for the SECOND underscore to find where the URL starts
+                            val firstUnderscore = item.mediaId.indexOf("_") // after 'media'
+                            val secondUnderscore = item.mediaId.indexOf("_", firstUnderscore + 1) // after 'queue'
+                            val thirdUnderscore = item.mediaId.indexOf("_", secondUnderscore + 1) // after timestamp
+
+                            item.mediaId.substring(thirdUnderscore + 1)
+                        } else {
+                            item.mediaId
+                        }
+
                         item.buildUpon()
-                            .setUri(Uri.parse(item.mediaId)) 
+                            .setUri(Uri.parse(actualUrl))
                             .setMediaMetadata(item.mediaMetadata)
                             .build()
                     }

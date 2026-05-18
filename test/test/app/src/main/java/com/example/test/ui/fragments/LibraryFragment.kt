@@ -1,5 +1,6 @@
 package com.example.test.ui.fragments
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -18,6 +19,7 @@ import com.example.test.MainActivity
 import com.example.test.R
 import com.example.test.SongAdapter
 import com.example.test.data.local.database.AppDatabase
+import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.repository.MusicRepository
 import com.example.test.data.ui.MusicViewModel
@@ -28,16 +30,33 @@ import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
 class LibraryFragment : Fragment() {
+
+    companion object {
+        private const val ARG_TARGET_PLAYLIST_ID = "target_playlist_id"
+
+        fun newInstance(targetPlaylistId: String? = null): LibraryFragment {
+            return LibraryFragment().apply {
+                arguments = Bundle().apply {
+                    putString(ARG_TARGET_PLAYLIST_ID, targetPlaylistId)
+                }
+            }
+        }
+    }
+
     private lateinit var viewModel: MusicViewModel
-    private var librarySongs = mutableListOf<Song>()
     private var _binding: FragmentLibraryBinding? = null
     private val binding get() = _binding!!
 
     private lateinit var adapter: SongAdapter
     private val db = Firebase.firestore
-    private var fullSongList = mutableListOf<Song>()
 
+    private var librarySongs = mutableListOf<Song>()
+    private var fullSongList = mutableListOf<Song>()
+    private var allPlaylists: List<PlaylistEntity> = emptyList()
     private var playerListener: Player.Listener? = null
+
+    private val targetPlaylistId: String?
+        get() = arguments?.getString(ARG_TARGET_PLAYLIST_ID)
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -50,13 +69,20 @@ class LibraryFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Initialize ViewModel with Repository (Including UserDao if required by your old version)
         val database = AppDatabase.getDatabase(requireContext())
         val repository = MusicRepository(database.songDao(), database.playlistDao(), database.userDao())
         val factory = MusicViewModelFactory(repository)
         viewModel = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
 
         setupAdapter()
-        
+
+        // Observe playlists so the picker dialog is always ready
+        viewModel.allPlaylists.observe(viewLifecycleOwner) { playlists ->
+            allPlaylists = playlists
+        }
+
+        // Initialize Player and Listeners
         if (MusicPlayerManager.isInitialized()) {
             attachPlayerListeners()
         } else {
@@ -70,20 +96,15 @@ class LibraryFragment : Fragment() {
 
         setupSearch()
         fetchSongsFromFirebase()
-
-        binding.btnTestPlaylist.setOnClickListener {
-            parentFragmentManager.beginTransaction()
-                .setCustomAnimations(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
-                .replace(R.id.fragment_container, PlaylistDetailFragment())
-                .addToBackStack(null)
-                .commit()
-        }
     }
 
     private fun attachPlayerListeners() {
         playerListener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // Refresh yellow highlight on list
                 adapter.notifyDataSetChanged()
+                // Sync MiniPlayer in MainActivity
+                (activity as? MainActivity)?.updateMiniPlayerUI()
             }
         }
         MusicPlayerManager.player.addListener(playerListener!!)
@@ -105,10 +126,9 @@ class LibraryFragment : Fragment() {
     private fun playSong(song: Song) {
         if (!MusicPlayerManager.isInitialized()) return
         val index = librarySongs.indexOf(song)
-        
-        // Use the centralized playPlaylist logic which handles metadata and skipping
-        MusicPlayerManager.playPlaylist(librarySongs, index)
 
+        // Start playback and update global UI
+        MusicPlayerManager.playPlaylist(librarySongs, index)
         adapter.notifyDataSetChanged()
         (activity as? MainActivity)?.updateMiniPlayerUI()
     }
@@ -138,9 +158,7 @@ class LibraryFragment : Fragment() {
         adapter = SongAdapter(
             songs = fullSongList,
             onSongClick = { song -> playSong(song) },
-            onAddClick = { song, anchorView ->
-                showPopup(song, anchorView)
-            },
+            onAddClick = { song, anchorView -> showPopup(song, anchorView) },
             showAddButton = true
         )
     }
@@ -148,17 +166,26 @@ class LibraryFragment : Fragment() {
     private fun showPopup(song: Song, anchorView: View) {
         val popup = PopupMenu(requireContext(), anchorView)
         popup.menuInflater.inflate(R.menu.menu_song_options, popup.menu)
+
+        // Context-aware menu title
+        targetPlaylistId?.let {
+            val item = popup.menu.findItem(R.id.action_add_to_playlist)
+            item.title = "Add to current Playlist"
+        }
+
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_add_to_playlist -> {
-                    val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, "test_playlist")
-                    viewModel.addSongToPlaylist(entity)
-                    Toast.makeText(requireContext(), "Added!", Toast.LENGTH_SHORT).show()
+                    if (targetPlaylistId != null) {
+                        addSongToSpecificPlaylist(song, targetPlaylistId!!)
+                    } else {
+                        showPlaylistPickerDialog(song)
+                    }
                     true
                 }
                 R.id.action_add_to_queue -> {
-                    MusicPlayerManager.queue.add(song)
-                    Toast.makeText(requireContext(), "Queued!", Toast.LENGTH_SHORT).show()
+                    MusicPlayerManager.addSongToQueue(song)
+                    Toast.makeText(requireContext(), "Added to queue!", Toast.LENGTH_SHORT).show()
                     true
                 }
                 else -> false
@@ -167,8 +194,39 @@ class LibraryFragment : Fragment() {
         popup.show()
     }
 
+    private fun addSongToSpecificPlaylist(song: Song, playlistId: String) {
+        val entity = SongEntity(
+            audioUrl = song.audioUrl,
+            title = song.title,
+            artist = song.artist,
+            imageUrl = song.imageUrl,
+            playlistId = playlistId,
+            //addedAt = System.currentTimeMillis()
+        )
+        viewModel.addSongToPlaylist(entity)
+        Toast.makeText(requireContext(), "Added to playlist!", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showPlaylistPickerDialog(song: Song) {
+        if (allPlaylists.isEmpty()) {
+            Toast.makeText(requireContext(), "No playlists found.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val playlistNames = allPlaylists.map { it.name }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle("Add to Playlist")
+            .setItems(playlistNames) { _, index ->
+                val selectedPlaylist = allPlaylists[index]
+                addSongToSpecificPlaylist(song, selectedPlaylist.id)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
+        // Prevent memory leaks by removing listeners
         if (MusicPlayerManager.isInitialized() && playerListener != null) {
             MusicPlayerManager.player.removeListener(playerListener!!)
         }

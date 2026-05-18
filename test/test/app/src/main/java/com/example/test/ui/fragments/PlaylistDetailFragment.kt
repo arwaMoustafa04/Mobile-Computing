@@ -82,6 +82,7 @@ class PlaylistDetailFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val database = AppDatabase.getDatabase(requireContext())
+        // Merged repository initialization (ensuring all necessary DAOs are passed)
         val repository = MusicRepository(database.songDao(), database.playlistDao(), database.userDao())
         val factory = MusicViewModelFactory(repository)
         viewModel = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
@@ -93,8 +94,10 @@ class PlaylistDetailFragment : Fragment() {
         viewModel.loadSongs(playlistId)
 
         binding.btnAddSong.setOnClickListener {
+            // Merged navigation: Passes current ID to LibraryFragment so it knows the target
+            val libraryFragment = LibraryFragment.newInstance(playlistId)
             parentFragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, LibraryFragment())
+                .replace(R.id.fragment_container, libraryFragment)
                 .addToBackStack(null)
                 .commit()
         }
@@ -115,7 +118,10 @@ class PlaylistDetailFragment : Fragment() {
     private fun attachPlayerListeners() {
         playerListener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // Keep list highlight in sync with playback
                 adapter.notifyDataSetChanged()
+                // Ensure MiniPlayer updates when songs skip automatically
+                (activity as? MainActivity)?.updateMiniPlayerUI()
             }
         }
         MusicPlayerManager.player.addListener(playerListener!!)
@@ -147,7 +153,7 @@ class PlaylistDetailFragment : Fragment() {
         popup.setOnMenuItemClickListener { item ->
             when (item.title) {
                 "Add to Queue" -> {
-                    MusicPlayerManager.queue.add(song)
+                    MusicPlayerManager.addSongToQueue(song)
                     Toast.makeText(requireContext(), "${song.title} added to Queue", Toast.LENGTH_SHORT).show()
                     true
                 }

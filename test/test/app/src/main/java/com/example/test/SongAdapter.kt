@@ -41,10 +41,10 @@ class SongAdapter(
         val song = songs[position]
         val context = holder.itemView.context
 
-        // 1. Determine if this song is the one currently playing
-        val isPlaying = song.audioUrl == MusicPlayerManager.currentSong?.audioUrl
+        // Inside onBindViewHolder
+        val currentPlayingUrl = MusicPlayerManager.currentSong?.audioUrl
+        val isPlaying = !currentPlayingUrl.isNullOrEmpty() && song.audioUrl == currentPlayingUrl
 
-        // 2. Set the Colors (Yellow if playing, otherwise default)
         if (isPlaying) {
             holder.binding.songTitle.setTextColor(Color.YELLOW)
             holder.binding.songArtist.setTextColor(Color.YELLOW)
