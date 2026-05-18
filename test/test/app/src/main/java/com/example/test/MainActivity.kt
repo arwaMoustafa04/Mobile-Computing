@@ -16,6 +16,7 @@ import androidx.media3.common.MediaItem
 import com.example.musicplayer.Song
 import com.example.test.ui.fragments.ProfileFragment
 import com.example.test.ui.fragments.PlaylistDetailFragment
+import com.example.test.ui.fragments.PlaylistLibraryFragment
 
 class MainActivity : AppCompatActivity() {
 
@@ -41,14 +42,13 @@ class MainActivity : AppCompatActivity() {
             override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
                 super.onFragmentResumed(fm, f)
 
-                // Update bottom navigation based on the current fragment
                 when (f) {
                     is LibraryFragment -> updateBottomNav("LIBRARY")
-                    is PlaylistDetailFragment -> updateBottomNav("PLAYLIST")
+                    is PlaylistLibraryFragment -> updateBottomNav("PLAYLIST_LIBRARY")
+                    is PlaylistDetailFragment -> updateBottomNav("PLAYLIST_LIBRARY")
                     is ProfileFragment -> updateBottomNav("PROFILE")
                 }
 
-                // Manage mini player visibility
                 if (f is PlayerFragment) {
                     binding.miniPlayer.visibility = View.GONE
                 } else {
@@ -57,15 +57,12 @@ class MainActivity : AppCompatActivity() {
             }
         }, false)
 
-
-
-        // Set up navigation clicks for the bottom bar
         binding.libraryBtn.setOnClickListener {
-            //set up logic later
+            navigateToPlaylistLibrary()
         }
 
         binding.searchBtn.setOnClickListener {
-            navigateToLibrary() // Assuming LibraryFragment contains the search functionality
+            navigateToLibrary()
         }
 
         binding.profileBtn.setOnClickListener {
@@ -78,6 +75,13 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, LibraryFragment())
             .commit()
     }
+
+    private fun navigateToPlaylistLibrary() {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, PlaylistLibraryFragment())
+            .commit()
+    }
+
     private fun navigateToProfile() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, ProfileFragment())
@@ -86,14 +90,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun updateBottomNav(selectedTab: String) {
-        // 1. Reset all icons to their default state (gray)
         binding.searchBtn.setImageResource(R.drawable.search)
         binding.libraryBtn.setImageResource(R.drawable.library)
         binding.profileBtn.setImageResource(R.drawable.profile)
 
-        // 2. Highlight only the active tab if necessary
         when (selectedTab) {
             "LIBRARY" -> binding.searchBtn.setImageResource(R.drawable.search_clicked)
+            "PLAYLIST_LIBRARY" -> binding.libraryBtn.setImageResource(R.drawable.library_clicked)
             "PROFILE" -> binding.profileBtn.setImageResource(R.drawable.profile_clicked)
         }
     }
@@ -126,7 +129,6 @@ class MainActivity : AppCompatActivity() {
             if (player.hasNextMediaItem()) {
                 player.seekToNext()
             } else {
-                // Wrap around to the first song
                 player.seekTo(0, 0)
             }
         }
@@ -137,7 +139,6 @@ class MainActivity : AppCompatActivity() {
             } else if (player.hasPreviousMediaItem()) {
                 player.seekToPrevious()
             } else {
-                // Wrap around to the last song
                 val lastIndex = player.mediaItemCount - 1
                 if (lastIndex >= 0) {
                     player.seekTo(lastIndex, 0)

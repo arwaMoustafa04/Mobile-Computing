@@ -1,5 +1,6 @@
 package com.example.test.data.repository
 
+import androidx.lifecycle.LiveData
 import com.example.test.data.local.dao.PlaylistDao
 import com.example.test.data.local.dao.SongDao
 import com.example.test.data.local.entity.PlaylistEntity
@@ -11,8 +12,6 @@ class MusicRepository(
     private val songDao: SongDao,
     private val playlistDao: PlaylistDao
 ) {
-
-    // --- Song Operations ---
 
     suspend fun addSong(song: SongEntity) = withContext(Dispatchers.IO) {
         songDao.addSong(song)
@@ -26,14 +25,21 @@ class MusicRepository(
         songDao.removeSong(song)
     }
 
-    // --- Playlist Operations ---
-
     suspend fun savePlaylist(playlist: PlaylistEntity) = withContext(Dispatchers.IO) {
         playlistDao.insertPlaylist(playlist)
     }
 
     suspend fun getPlaylist(id: String): PlaylistEntity? = withContext(Dispatchers.IO) {
         playlistDao.getPlaylistById(id)
+    }
+
+    fun getAllPlaylistsLive(): LiveData<List<PlaylistEntity>> {
+        return playlistDao.getAllPlaylistsLive()
+    }
+
+    suspend fun deletePlaylist(id: String) = withContext(Dispatchers.IO) {
+        playlistDao.deleteSongsByPlaylistId(id)
+        playlistDao.deletePlaylistById(id)
     }
 
     suspend fun updatePlaylistDetails(playlistId: String, newName: String, newImage: String) =

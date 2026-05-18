@@ -32,17 +32,32 @@ import com.example.test.player.MusicPlayerManager
 
 class PlaylistDetailFragment : Fragment() {
 
+    companion object {
+        private const val ARG_PLAYLIST_ID = "playlist_id"
+
+        fun newInstance(playlistId: String): PlaylistDetailFragment {
+            return PlaylistDetailFragment().apply {
+                arguments = Bundle().apply {
+                    putString(ARG_PLAYLIST_ID, playlistId)
+                }
+            }
+        }
+    }
+
     private var _binding: FragmentPlaylistDetailBinding? = null
     private val binding get() = _binding!!
 
     private lateinit var viewModel: MusicViewModel
     private lateinit var adapter: SongAdapter
     private var playerListener: Player.Listener? = null
-    
+
+    private val playlistId: String
+        get() = arguments?.getString(ARG_PLAYLIST_ID) ?: "test_playlist"
+
     private var currentPlaylistMetadata = Playlist(
         id = "test_playlist",
-        name = "My Summer Hits",
-        imageUrl = "https://raw.githubusercontent.com/TDMMELO/my-music-files/main/momken.jpg"
+        name = "My Playlist",
+        imageUrl = ""
     )
 
     private val pickMedia = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -74,8 +89,8 @@ class PlaylistDetailFragment : Fragment() {
         setupRecyclerView()
         setupObservers()
 
-        viewModel.loadPlaylist("test_playlist")
-        viewModel.loadSongs("test_playlist")
+        viewModel.loadPlaylist(playlistId)
+        viewModel.loadSongs(playlistId)
 
         binding.btnAddSong.setOnClickListener {
             parentFragmentManager.beginTransaction()
@@ -88,7 +103,6 @@ class PlaylistDetailFragment : Fragment() {
             showEditDialog()
         }
 
-        // Safety check for asynchronous player initialization
         if (MusicPlayerManager.isInitialized()) {
             attachPlayerListeners()
         } else {
@@ -129,7 +143,7 @@ class PlaylistDetailFragment : Fragment() {
         val popup = PopupMenu(requireContext(), anchorView)
         popup.menu.add("Add to Queue")
         popup.menu.add("Remove from Playlist")
-        
+
         popup.setOnMenuItemClickListener { item ->
             when (item.title) {
                 "Add to Queue" -> {
@@ -138,7 +152,7 @@ class PlaylistDetailFragment : Fragment() {
                     true
                 }
                 "Remove from Playlist" -> {
-                    val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, "test_playlist")
+                    val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, playlistId)
                     viewModel.removeSongFromPlaylist(entity)
                     true
                 }
@@ -172,10 +186,7 @@ class PlaylistDetailFragment : Fragment() {
 
     private fun playPlaylistSongs(songs: List<Song>, index: Int) {
         if (!MusicPlayerManager.isInitialized()) return
-
-        // Use the centralized playPlaylist logic which loads ALL songs into the player
         MusicPlayerManager.playPlaylist(songs, index)
-
         adapter.notifyDataSetChanged()
         (activity as? MainActivity)?.updateMiniPlayerUI()
     }
@@ -196,7 +207,7 @@ class PlaylistDetailFragment : Fragment() {
         btnSave.setOnClickListener {
             val newName = nameInput.text.toString()
             if (newName.isNotEmpty()) {
-                viewModel.updatePlaylist("test_playlist", newName, currentPlaylistMetadata.imageUrl)
+                viewModel.updatePlaylist(playlistId, newName, currentPlaylistMetadata.imageUrl)
                 dialog.dismiss()
             }
         }

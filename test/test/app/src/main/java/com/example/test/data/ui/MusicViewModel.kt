@@ -17,6 +17,8 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
     private val _songs = MutableLiveData<List<SongEntity>>()
     val songs: LiveData<List<SongEntity>> = _songs
 
+    val allPlaylists: LiveData<List<PlaylistEntity>> = repository.getAllPlaylistsLive()
+
     fun loadPlaylist(id: String) {
         viewModelScope.launch {
             _playlist.value = repository.getPlaylist(id)
@@ -41,6 +43,18 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
         viewModelScope.launch {
             repository.removeSong(song)
             loadSongs(song.playlistId)
+        }
+    }
+
+    fun createPlaylist(playlist: PlaylistEntity) {
+        viewModelScope.launch {
+            repository.savePlaylist(playlist)
+        }
+    }
+
+    fun deletePlaylist(id: String) {
+        viewModelScope.launch {
+            repository.deletePlaylist(id)
         }
     }
 
