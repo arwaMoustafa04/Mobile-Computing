@@ -18,6 +18,7 @@ import com.example.test.ui.fragments.ProfileFragment
 import com.example.test.ui.fragments.PlaylistDetailFragment
 import com.example.test.ui.fragments.LoginFragment
 import com.google.firebase.auth.FirebaseAuth
+import com.example.test.ui.fragments.PlaylistLibraryFragment
 
 class MainActivity : AppCompatActivity() {
 
@@ -53,7 +54,8 @@ class MainActivity : AppCompatActivity() {
                 // Update bottom navigation based on the current fragment
                 when (f) {
                     is LibraryFragment -> updateBottomNav("LIBRARY")
-                    is PlaylistDetailFragment -> updateBottomNav("PLAYLIST")
+                    is PlaylistLibraryFragment -> updateBottomNav("PLAYLIST_LIBRARY")
+                    is PlaylistDetailFragment -> updateBottomNav("PLAYLIST_LIBRARY")
                     is ProfileFragment -> updateBottomNav("PROFILE")
                 }
 
@@ -68,11 +70,11 @@ class MainActivity : AppCompatActivity() {
 
         // Set up navigation clicks for the bottom bar
         binding.libraryBtn.setOnClickListener {
-            //set up logic later
+            navigateToPlaylistLibrary()
         }
 
         binding.searchBtn.setOnClickListener {
-            navigateToLibrary() // Assuming LibraryFragment contains the search functionality
+            navigateToLibrary()
         }
 
         binding.profileBtn.setOnClickListener {
@@ -100,12 +102,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun navigateToProfile() {
-        binding.bottomNav.visibility = View.VISIBLE
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, ProfileFragment())
             .addToBackStack(null)
             .commit()
     }
+
+    private fun navigateToPlaylistLibrary() {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, PlaylistLibraryFragment())
+            .commit()
+    }
+
+
 
     fun updateBottomNav(selectedTab: String) {
         // 1. Reset all icons to their default state (gray)
@@ -116,6 +125,7 @@ class MainActivity : AppCompatActivity() {
         // 2. Highlight only the active tab if necessary
         when (selectedTab) {
             "LIBRARY" -> binding.searchBtn.setImageResource(R.drawable.search_clicked)
+            "PLAYLIST_LIBRARY" -> binding.libraryBtn.setImageResource(R.drawable.library_clicked)
             "PROFILE" -> binding.profileBtn.setImageResource(R.drawable.profile_clicked)
         }
     }

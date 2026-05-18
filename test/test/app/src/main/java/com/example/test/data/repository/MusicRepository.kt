@@ -1,5 +1,6 @@
 package com.example.test.data.repository
 
+import androidx.lifecycle.LiveData
 import com.example.test.data.local.dao.PlaylistDao
 import com.example.test.data.local.dao.SongDao
 import com.example.test.data.local.dao.UserDao
@@ -52,6 +53,15 @@ class MusicRepository(
 
     suspend fun getPlaylist(id: String): PlaylistEntity? = withContext(Dispatchers.IO) {
         playlistDao.getPlaylistById(id)
+    }
+
+    fun getAllPlaylistsLive(): LiveData<List<PlaylistEntity>> {
+        return playlistDao.getAllPlaylistsLive()
+    }
+
+    suspend fun deletePlaylist(id: String) = withContext(Dispatchers.IO) {
+        playlistDao.deleteSongsByPlaylistId(id)
+        playlistDao.deletePlaylistById(id)
     }
 
     suspend fun updatePlaylistDetails(playlistId: String, newName: String, newImage: String) =
