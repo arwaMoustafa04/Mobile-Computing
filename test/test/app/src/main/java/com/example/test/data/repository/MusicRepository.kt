@@ -2,15 +2,33 @@ package com.example.test.data.repository
 
 import com.example.test.data.local.dao.PlaylistDao
 import com.example.test.data.local.dao.SongDao
+import com.example.test.data.local.dao.UserDao
 import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
+import com.example.test.data.local.entity.UserEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 class MusicRepository(
     private val songDao: SongDao,
-    private val playlistDao: PlaylistDao
+    private val playlistDao: PlaylistDao,
+    private val userDao: UserDao
 ) {
+
+    // --- User Operations ---
+
+    fun getUser(userId: String): Flow<UserEntity?> = userDao.getUserById(userId)
+
+    suspend fun saveUser(user: UserEntity) = withContext(Dispatchers.IO) {
+        userDao.insertUser(user)
+    }
+
+
+    suspend fun updateUserProfile(userId: String, username: String, profileImageUrl: String, email: String) = withContext(Dispatchers.IO) {
+        val user = UserEntity(id = userId, username = username, email = email, profileImageUrl = profileImageUrl)
+        userDao.insertUser(user)
+    }
 
     // --- Song Operations ---
 

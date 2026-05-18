@@ -32,6 +32,7 @@
                     android:contentDescription="User Profile Picture" />
 
                 <TextView
+                    android:id="@+id/tvUsername"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Music Enthusiast"
@@ -41,11 +42,13 @@
                     android:layout_marginTop="16dp"/>
 
                 <TextView
+                    android:id="@+id/btnEditProfile"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="View Profile"
+                    android:text="Edit Profile"
                     android:textColor="@color/white"
-                    android:textSize="14sp"/>
+                    android:textSize="14sp"
+                    android:padding="8dp"/>
             </LinearLayout>
 
             <LinearLayout
@@ -71,6 +74,7 @@
                     android:textSize="18sp" />
 
                 <TextView
+                    android:id="@+id/btnLogout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:padding="12dp"

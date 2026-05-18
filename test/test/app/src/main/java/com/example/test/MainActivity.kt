@@ -16,15 +16,20 @@ import androidx.media3.common.MediaItem
 import com.example.musicplayer.Song
 import com.example.test.ui.fragments.ProfileFragment
 import com.example.test.ui.fragments.PlaylistDetailFragment
+import com.example.test.ui.fragments.LoginFragment
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var auth: FirebaseAuth
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        auth = FirebaseAuth.getInstance()
 
         binding.miniPlayer.visibility = View.GONE
 
@@ -33,7 +38,11 @@ class MainActivity : AppCompatActivity() {
             updateMiniPlayerUI()
 
             if (savedInstanceState == null) {
-                navigateToLibrary()
+                if (auth.currentUser == null) {
+                    navigateToLogin()
+                } else {
+                    navigateToLibrary()
+                }
             }
         }
 
@@ -49,15 +58,13 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 // Manage mini player visibility
-                if (f is PlayerFragment) {
+                if (f is PlayerFragment || f is LoginFragment) {
                     binding.miniPlayer.visibility = View.GONE
                 } else {
                     updateMiniPlayerUI()
                 }
             }
         }, false)
-
-
 
         // Set up navigation clicks for the bottom bar
         binding.libraryBtn.setOnClickListener {
@@ -73,12 +80,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun navigateToLibrary() {
+    fun navigateToLibrary() {
+        binding.bottomNav.visibility = View.VISIBLE
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, LibraryFragment())
             .commit()
     }
-    private fun navigateToProfile() {
+
+    fun navigateToLogin() {
+        binding.bottomNav.visibility = View.GONE
+        binding.miniPlayer.visibility = View.GONE
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, LoginFragment())
+            .commit()
+    }
+
+    fun onLoginSuccess() {
+        navigateToLibrary()
+    }
+
+    fun navigateToProfile() {
+        binding.bottomNav.visibility = View.VISIBLE
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, ProfileFragment())
             .addToBackStack(null)
@@ -158,8 +180,9 @@ class MainActivity : AppCompatActivity() {
         if (!MusicPlayerManager.isInitialized()) return
         val currentSong = MusicPlayerManager.currentSong
         val isPlayerOpen = supportFragmentManager.findFragmentById(R.id.fragment_container) is PlayerFragment
+        val isLoginOpen = supportFragmentManager.findFragmentById(R.id.fragment_container) is LoginFragment
 
-        if (currentSong != null && !isPlayerOpen) {
+        if (currentSong != null && !isPlayerOpen && !isLoginOpen) {
             binding.miniPlayer.visibility = View.VISIBLE
             binding.miniSongTitle.text = currentSong.title
             binding.miniArtistName.text = currentSong.artist

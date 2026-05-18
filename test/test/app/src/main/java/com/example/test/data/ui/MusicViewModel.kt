@@ -3,9 +3,11 @@ package com.example.test.data.ui
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
+import com.example.test.data.local.entity.UserEntity
 import com.example.test.data.repository.MusicRepository
 import kotlinx.coroutines.launch
 
@@ -16,6 +18,16 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
 
     private val _songs = MutableLiveData<List<SongEntity>>()
     val songs: LiveData<List<SongEntity>> = _songs
+
+    fun getUser(userId: String): LiveData<UserEntity?> {
+        return repository.getUser(userId).asLiveData()
+    }
+
+    fun saveUser(user: UserEntity) {
+        viewModelScope.launch {
+            repository.saveUser(user)
+        }
+    }
 
     fun loadPlaylist(id: String) {
         viewModelScope.launch {

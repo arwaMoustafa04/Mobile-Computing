@@ -51,7 +51,7 @@ class LibraryFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val database = AppDatabase.getDatabase(requireContext())
-        val repository = MusicRepository(database.songDao(), database.playlistDao())
+        val repository = MusicRepository(database.songDao(), database.playlistDao(), database.userDao())
         val factory = MusicViewModelFactory(repository)
         viewModel = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
 
