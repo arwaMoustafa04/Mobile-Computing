@@ -1,8 +1,10 @@
 package com.example.test.ui.fragments
 
+// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
+
+import android.app.AlertDialog
 import android.os.Bundle
 import android.text.Editable
-import android.app.AlertDialog
 import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
@@ -17,15 +19,16 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.musicplayer.Song
 import com.example.test.MainActivity
 import com.example.test.R
-import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.SongAdapter
 import com.example.test.data.local.database.AppDatabase
+import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.repository.MusicRepository
 import com.example.test.data.ui.MusicViewModel
 import com.example.test.data.ui.MusicViewModelFactory
 import com.example.test.databinding.FragmentLibraryBinding
 import com.example.test.player.MusicPlayerManager
+import com.example.test.util.NetworkUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -34,35 +37,29 @@ class LibraryFragment : Fragment() {
 
     companion object {
         private const val ARG_TARGET_PLAYLIST_ID = "target_playlist_id"
-        fun newInstance(targetPlaylistId: String? = null): LibraryFragment {
-            return LibraryFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_TARGET_PLAYLIST_ID, targetPlaylistId)
-                }
-            }
+        fun newInstance(targetPlaylistId: String? = null) = LibraryFragment().apply {
+            arguments = Bundle().apply { putString(ARG_TARGET_PLAYLIST_ID, targetPlaylistId) }
         }
     }
 
-    private lateinit var viewModel: MusicViewModel
-    private var librarySongs = mutableListOf<Song>()
     private var _binding: FragmentLibraryBinding? = null
     private val binding get() = _binding!!
 
+    private lateinit var viewModel: MusicViewModel
     private lateinit var adapter: SongAdapter
     private lateinit var auth: FirebaseAuth
     private val db = Firebase.firestore
-    private var fullSongList = mutableListOf<Song>()
 
+    private var librarySongs = mutableListOf<Song>()
+    private var fullSongList = mutableListOf<Song>()
+    private var allPlaylists: List<PlaylistEntity> = emptyList()
     private var playerListener: Player.Listener? = null
 
-    private var allPlaylists: List<PlaylistEntity> = emptyList()
     private val targetPlaylistId: String?
         get() = arguments?.getString(ARG_TARGET_PLAYLIST_ID)
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         _binding = FragmentLibraryBinding.inflate(inflater, container, false)
         auth = FirebaseAuth.getInstance()
@@ -72,64 +69,120 @@ class LibraryFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val database = AppDatabase.getDatabase(requireContext())
+        val database   = AppDatabase.getDatabase(requireContext())
         val repository = MusicRepository(database.songDao(), database.playlistDao(), database.userDao())
-        val factory = MusicViewModelFactory(repository)
-        viewModel = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
+        val factory    = MusicViewModelFactory(repository)
+        viewModel      = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
 
-        setupAdapter()
+        setupRecyclerView()
+        setupSearch()
+        observeErrors()
 
-        val userId = auth.currentUser?.uid
-        if (userId != null) {
-            viewModel.getPlaylistsByUser(userId).observe(viewLifecycleOwner) { playlists ->
-                allPlaylists = playlists
-            }
+        auth.currentUser?.uid?.let { userId ->
+            viewModel.getPlaylistsByUser(userId).observe(viewLifecycleOwner) { allPlaylists = it }
         }
 
-        if (MusicPlayerManager.isInitialized()) {
-            attachPlayerListeners()
+        if (MusicPlayerManager.isInitialized()) attachPlayerListeners()
+        else MusicPlayerManager.initialize(requireContext()) { if (isAdded) attachPlayerListeners() }
+
+        fetchSongs()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Data loading — offline-first strategy
+    // ---------------------------------------------------------------------------
+
+    private fun fetchSongs() {
+        if (NetworkUtils.isOnline(requireContext())) {
+            fetchSongsFromFirestore()
         } else {
-            MusicPlayerManager.initialize(requireContext()) {
-                if (isAdded) attachPlayerListeners()
+            // Offline — nothing to show from local DB for the global song library
+            // (songs live in Firestore, not Room), so show a friendly message
+            showOfflineBanner()
+        }
+    }
+
+    private fun fetchSongsFromFirestore() {
+        showLoading(true)
+        db.collection("songs").get()
+            .addOnSuccessListener { result ->
+                if (!isAdded) return@addOnSuccessListener
+                showLoading(false)
+                hideOfflineBanner()
+
+                val fetched = result.documents.mapNotNull { it.toObject(Song::class.java) }
+                librarySongs = fetched.toMutableList()
+                fullSongList = fetched.toMutableList()
+                adapter.updateSongs(fetched)
+
+                if (fetched.isEmpty()) {
+                    showEmptyState("No songs available yet.")
+                }
+            }
+            .addOnFailureListener { e ->
+                if (!isAdded) return@addOnFailureListener
+                showLoading(false)
+                // Network call failed — show cached data if any, else error
+                if (fullSongList.isNotEmpty()) {
+                    Toast.makeText(
+                        requireContext(),
+                        "Couldn't refresh songs. Showing cached data.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    showEmptyState("Couldn't load songs: ${e.message}")
+                }
+            }
+    }
+
+    // ---------------------------------------------------------------------------
+    // UI state helpers
+    // ---------------------------------------------------------------------------
+
+    private fun showLoading(show: Boolean) {
+        // Uses the progressBar view added to fragment_library.xml
+        binding.progressBar.visibility = if (show) View.VISIBLE else View.GONE
+        binding.recyclerView.visibility = if (show) View.GONE else View.VISIBLE
+    }
+
+    private fun showOfflineBanner() {
+        binding.tvOffline.visibility = View.VISIBLE
+        binding.tvOffline.text = getString(R.string.msg_offline)
+        // Still show whatever is cached
+        adapter.updateSongs(fullSongList)
+    }
+
+    private fun hideOfflineBanner() {
+        binding.tvOffline.visibility = View.GONE
+    }
+
+    private fun showEmptyState(message: String) {
+        binding.tvOffline.visibility = View.VISIBLE
+        binding.tvOffline.text = message
+    }
+
+    private fun observeErrors() {
+        viewModel.error.observe(viewLifecycleOwner) { message ->
+            if (!message.isNullOrEmpty()) {
+                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+                viewModel.clearError()
             }
         }
+    }
 
+    // ---------------------------------------------------------------------------
+    // RecyclerView & search
+    // ---------------------------------------------------------------------------
+
+    private fun setupRecyclerView() {
+        adapter = SongAdapter(
+            songs         = emptyList(),
+            onSongClick   = { song -> playSong(song) },
+            onAddClick    = { song, anchor -> showPopup(song, anchor) },
+            showAddButton = true
+        )
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = adapter
-
-        setupSearch()
-        fetchSongsFromFirebase()
-    }
-
-    private fun attachPlayerListeners() {
-        playerListener = object : Player.Listener {
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                adapter.notifyDataSetChanged()
-                (activity as? MainActivity)?.updateMiniPlayerUI()
-            }
-        }
-        MusicPlayerManager.player.addListener(playerListener!!)
-    }
-
-    private fun fetchSongsFromFirebase() {
-        db.collection("songs").get().addOnSuccessListener { result ->
-            librarySongs.clear()
-            fullSongList.clear()
-            for (document in result) {
-                val song = document.toObject(Song::class.java)
-                librarySongs.add(song)
-                fullSongList.add(song)
-            }
-            adapter.updateSongs(librarySongs)
-        }
-    }
-
-    private fun playSong(song: Song) {
-        if (!MusicPlayerManager.isInitialized()) return
-        val index = librarySongs.indexOf(song)
-        MusicPlayerManager.playPlaylist(librarySongs, index, null)
-        adapter.notifyDataSetChanged()
-        (activity as? MainActivity)?.updateMiniPlayerUI()
     }
 
     private fun setupSearch() {
@@ -153,16 +206,26 @@ class LibraryFragment : Fragment() {
         }
     }
 
-    private fun setupAdapter() {
-        adapter = SongAdapter(
-            songs = fullSongList,
-            onSongClick = { song -> playSong(song) },
-            onAddClick = { song, anchorView ->
-                showPopup(song, anchorView)
-            },
-            showAddButton = true
-        )
+    private fun playSong(song: Song) {
+        if (!MusicPlayerManager.isInitialized()) return
+        MusicPlayerManager.playPlaylist(librarySongs, librarySongs.indexOf(song), null)
+        adapter.notifyDataSetChanged()
+        (activity as? MainActivity)?.updateMiniPlayerUI()
     }
+
+    private fun attachPlayerListeners() {
+        playerListener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                adapter.notifyDataSetChanged()
+                (activity as? MainActivity)?.updateMiniPlayerUI()
+            }
+        }
+        MusicPlayerManager.player.addListener(playerListener!!)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Popup menu
+    // ---------------------------------------------------------------------------
 
     private fun showPopup(song: Song, anchorView: View) {
         val popup = PopupMenu(requireContext(), anchorView)
@@ -173,11 +236,8 @@ class LibraryFragment : Fragment() {
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_add_to_playlist -> {
-                    if (targetPlaylistId != null) {
-                        addSongToSpecificPlaylist(song, targetPlaylistId!!)
-                    } else {
-                        showPlaylistPickerDialog(song)
-                    }
+                    if (targetPlaylistId != null) addSongToSpecificPlaylist(song, targetPlaylistId!!)
+                    else showPlaylistPickerDialog(song)
                     true
                 }
                 R.id.action_add_to_queue -> {
@@ -192,46 +252,32 @@ class LibraryFragment : Fragment() {
     }
 
     private fun addSongToSpecificPlaylist(song: Song, playlistId: String) {
-        // ← Get userId so we can sync the song addition to Firestore
-        val userId = auth.currentUser?.uid
-        if (userId == null) {
+        val userId = auth.currentUser?.uid ?: run {
             Toast.makeText(requireContext(), "User not logged in", Toast.LENGTH_SHORT).show()
             return
         }
-
-        val entity = SongEntity(
-            audioUrl   = song.audioUrl,
-            title      = song.title,
-            artist     = song.artist,
-            imageUrl   = song.imageUrl,
-            playlistId = playlistId,
-            addedAt    = System.currentTimeMillis()
+        if (!NetworkUtils.isOnline(requireContext())) {
+            Toast.makeText(requireContext(), "You're offline. Can't add songs right now.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        viewModel.addSongToPlaylist(
+            SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, playlistId, System.currentTimeMillis()),
+            userId
         )
-        // ← Pass userId so the repo writes to Firestore as well as Room
-        viewModel.addSongToPlaylist(entity, userId)
-
-        // If this playlist is currently playing, add the song to the player timeline too
         if (MusicPlayerManager.isInitialized() && MusicPlayerManager.activePlaylistId == playlistId) {
             MusicPlayerManager.addSongToEnd(song)
         }
-
         Toast.makeText(requireContext(), "Added to playlist!", Toast.LENGTH_SHORT).show()
     }
 
     private fun showPlaylistPickerDialog(song: Song) {
         if (allPlaylists.isEmpty()) {
-            Toast.makeText(
-                requireContext(),
-                "No playlists yet. Create one first!",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(requireContext(), "No playlists yet. Create one first!", Toast.LENGTH_SHORT).show()
             return
         }
-
-        val playlistNames = allPlaylists.map { it.name }.toTypedArray()
         AlertDialog.Builder(requireContext())
             .setTitle("Add to Playlist")
-            .setItems(playlistNames) { _, index ->
+            .setItems(allPlaylists.map { it.name }.toTypedArray()) { _, index ->
                 addSongToSpecificPlaylist(song, allPlaylists[index].id)
             }
             .setNegativeButton("Cancel", null)

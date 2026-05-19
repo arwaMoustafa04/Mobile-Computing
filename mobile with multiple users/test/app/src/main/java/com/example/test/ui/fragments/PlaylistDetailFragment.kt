@@ -154,8 +154,9 @@ class PlaylistDetailFragment : Fragment() {
     private fun setupObservers() {
         viewModel.playlist.observe(viewLifecycleOwner) { entity ->
             entity?.let {
+                val imageChanged = it.imageUrl != currentPlaylistMetadata.imageUrl
                 currentPlaylistMetadata = Playlist(it.id, it.name, it.imageUrl)
-                updateUI(it.name, it.imageUrl)
+                updateUI(it.name, it.imageUrl, skipImageCache = imageChanged)
             }
         }
         viewModel.songs.observe(viewLifecycleOwner) { dbSongs ->
@@ -163,12 +164,18 @@ class PlaylistDetailFragment : Fragment() {
         }
     }
 
-    private fun updateUI(name: String, imageUrl: String) {
+    private fun updateUI(name: String, imageUrl: String, skipImageCache: Boolean = false) {
         binding.playlistTitle.text = name
-        Glide.with(this).load(imageUrl)
+        val glideRequest = Glide.with(this)
+            .load(imageUrl)
             .placeholder(R.drawable.placeholder_image)
             .error(R.drawable.placeholder_image)
-            .into(binding.playlistArt)
+        if (skipImageCache) {
+            glideRequest
+                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
+        }
+        glideRequest.into(binding.playlistArt)
     }
 
     private fun playPlaylistSongs(songs: List<Song>, index: Int) {

@@ -17,6 +17,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.test.MainActivity
 import com.example.test.R
 import com.example.test.data.local.database.AppDatabase
@@ -28,6 +29,7 @@ import com.example.test.databinding.FragmentProfileBinding
 import com.example.test.util.CloudinaryUploader
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
 
 class ProfileFragment : Fragment() {
@@ -42,6 +44,9 @@ class ProfileFragment : Fragment() {
     private var currentUsername        = ""
     private var currentProfileImageUrl = ""
     private var currentEmail           = ""
+
+    // Real-time Firestore listener — keeps profile in sync across devices
+    private var profileListener: ListenerRegistration? = null
 
     // Dialog state
     private var openDialog: android.app.AlertDialog? = null
@@ -71,16 +76,7 @@ class ProfileFragment : Fragment() {
         val factory    = MusicViewModelFactory(repository)
         viewModel      = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
 
-        auth.currentUser?.uid?.let { userId ->
-            viewModel.getUser(userId).observe(viewLifecycleOwner) { user ->
-                user?.let {
-                    currentUsername        = it.username
-                    currentProfileImageUrl = it.profileImageUrl
-                    currentEmail           = it.email
-                    updateUI()
-                }
-            }
-        }
+        auth.currentUser?.uid?.let { userId -> listenToProfile(userId) }
 
         binding.btnEditProfile.setOnClickListener { showEditDialog() }
         binding.btnLogout.setOnClickListener {
@@ -89,14 +85,50 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    private fun updateUI() {
+    /**
+     * Attaches a real-time Firestore listener on the user document.
+     * Any change (from this device OR another) is pushed here instantly
+     * and reflected in the UI without requiring a logout/login.
+     */
+    private fun listenToProfile(userId: String) {
+        profileListener = db.collection("users").document(userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+
+                val newUsername = snapshot.getString("username")        ?: ""
+                val newImageUrl = snapshot.getString("profileImageUrl") ?: ""
+                val newEmail    = snapshot.getString("email")           ?: ""
+
+                // Only re-draw if something actually changed
+                val imageChanged = newImageUrl != currentProfileImageUrl
+
+                currentUsername        = newUsername
+                currentProfileImageUrl = newImageUrl
+                currentEmail           = newEmail
+
+                // Also keep Room in sync
+                viewModel.saveUser(UserEntity(userId, newUsername, newEmail, newImageUrl))
+
+                updateUI(imageChanged)
+            }
+    }
+
+    private fun updateUI(skipImageCache: Boolean = false) {
         binding.tvUsername.text = currentUsername
-        Glide.with(this)
+
+        val glideRequest = Glide.with(this)
             .load(currentProfileImageUrl)
             .placeholder(R.drawable.profile)
             .error(R.drawable.profile)
             .circleCrop()
-            .into(binding.profilePicture)
+
+        if (skipImageCache) {
+            // Bypass Glide's disk cache so the new image is fetched immediately
+            glideRequest.diskCacheStrategy(DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
+        }
+
+        glideRequest.into(binding.profilePicture)
     }
 
     private fun showEditDialog() {
@@ -150,6 +182,8 @@ class ProfileFragment : Fragment() {
                 pendingImageUrl = url
                 dialogImageView?.let { iv ->
                     Glide.with(this@ProfileFragment).load(url)
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                        .skipMemoryCache(true)
                         .placeholder(R.drawable.profile).circleCrop().into(iv)
                 }
                 Toast.makeText(requireContext(), "Picture ready — tap Save", Toast.LENGTH_SHORT).show()
@@ -163,15 +197,9 @@ class ProfileFragment : Fragment() {
 
     private fun updateProfile(username: String, imageUrl: String) {
         val userId = auth.currentUser?.uid ?: return
+        // Writing to Firestore triggers the real-time listener above on ALL devices
         db.collection("users").document(userId)
             .update(mapOf("username" to username, "profileImageUrl" to imageUrl))
-            .addOnSuccessListener {
-                viewModel.saveUser(UserEntity(userId, username, currentEmail, imageUrl))
-                currentUsername        = username
-                currentProfileImageUrl = imageUrl
-                updateUI()
-                Toast.makeText(requireContext(), "Profile updated", Toast.LENGTH_SHORT).show()
-            }
             .addOnFailureListener { e ->
                 Toast.makeText(requireContext(), "Failed to update: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -179,6 +207,9 @@ class ProfileFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // Remove the listener to avoid memory leaks
+        profileListener?.remove()
+        profileListener = null
         _binding = null
     }
 }

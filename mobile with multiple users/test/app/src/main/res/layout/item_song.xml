@@ -4,12 +4,12 @@
     android:layout_height="wrap_content"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="@dimen/spacing_lg">
 
     <ImageView
         android:id="@+id/songImage"
-        android:layout_width="70dp"
-        android:layout_height="70dp"
+        android:layout_width="@dimen/song_image_size"
+        android:layout_height="@dimen/song_image_size"
         android:scaleType="centerCrop" />
 
     <LinearLayout
@@ -17,13 +17,13 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:layout_marginStart="12dp">
+        android:layout_marginStart="@dimen/spacing_lg">
 
         <TextView
             android:id="@+id/songTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="18sp"
+            android:textSize="@dimen/text_xl"
             android:textStyle="bold"
             android:textColor="@color/white"/>
 
@@ -32,16 +32,15 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/white"
-            android:textSize="14sp" />
-
+            android:textSize="@dimen/text_md" />
     </LinearLayout>
 
     <ImageButton
         android:id="@+id/btnAddSong"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="@dimen/btn_icon_lg"
+        android:layout_height="@dimen/btn_icon_lg"
         android:src="@drawable/add_better"
         android:background="@null"
         android:scaleType="centerInside"
-        android:padding="6dp"/>
+        android:padding="@dimen/spacing_sm"/>
 </LinearLayout>

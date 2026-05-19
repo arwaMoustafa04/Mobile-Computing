@@ -1,5 +1,7 @@
 package com.example.test.data.repository
 
+// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
+
 import androidx.lifecycle.LiveData
 import com.example.test.data.local.dao.PlaylistDao
 import com.example.test.data.local.dao.SongDao
@@ -8,8 +10,12 @@ import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.local.entity.UserEntity
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
@@ -18,11 +24,12 @@ class MusicRepository(
     private val playlistDao: PlaylistDao,
     private val userDao: UserDao
 ) {
-
+    // Scoped coroutines for Firestore listener callbacks (not tied to any single Fragment)
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val db = FirebaseFirestore.getInstance()
 
     // ---------------------------------------------------------------------------
-    // User Operations
+    // User
     // ---------------------------------------------------------------------------
 
     fun getUser(userId: String): Flow<UserEntity?> = userDao.getUserById(userId)
@@ -31,106 +38,57 @@ class MusicRepository(
         userDao.insertUser(user)
     }
 
-    suspend fun updateUserProfile(
-        userId: String,
-        username: String,
-        profileImageUrl: String,
-        email: String
-    ) = withContext(Dispatchers.IO) {
-        val user = UserEntity(
-            id = userId,
-            username = username,
-            email = email,
-            profileImageUrl = profileImageUrl
-        )
-        userDao.insertUser(user)
-    }
-
     // ---------------------------------------------------------------------------
-    // Song Operations
+    // Songs
     // ---------------------------------------------------------------------------
 
-    /**
-     * Adds a song both to the local Room cache and to Firestore under
-     * users/{userId}/playlists/{playlistId}/songs/{audioUrl}
-     */
     suspend fun addSong(song: SongEntity, userId: String) = withContext(Dispatchers.IO) {
-        // 1. Save locally
         songDao.addSong(song)
-
-        // 2. Sync to Firestore
         val songMap = mapOf(
-            "audioUrl"  to song.audioUrl,
-            "title"     to song.title,
-            "artist"    to song.artist,
-            "imageUrl"  to song.imageUrl,
+            "audioUrl"   to song.audioUrl,
+            "title"      to song.title,
+            "artist"     to song.artist,
+            "imageUrl"   to song.imageUrl,
             "playlistId" to song.playlistId,
-            "addedAt"   to song.addedAt
+            "addedAt"    to song.addedAt
         )
-        db.collection("users")
-            .document(userId)
-            .collection("playlists")
-            .document(song.playlistId)
-            .collection("songs")
-            // Use a URL-safe doc ID derived from the audioUrl
-            .document(song.audioUrl.hashCode().toString())
-            .set(songMap)
-            .await()
+        db.collection("users").document(userId)
+            .collection("playlists").document(song.playlistId)
+            .collection("songs").document(song.audioUrl.hashCode().toString())
+            .set(songMap).await()
     }
 
     suspend fun getSongsByPlaylist(playlistId: String): List<SongEntity> =
-        withContext(Dispatchers.IO) {
-            songDao.getSongsByPlaylist(playlistId)
-        }
+        withContext(Dispatchers.IO) { songDao.getSongsByPlaylist(playlistId) }
 
-    /**
-     * Removes a song from Room and from Firestore.
-     */
     suspend fun removeSong(song: SongEntity, userId: String) = withContext(Dispatchers.IO) {
-        // 1. Remove locally
         songDao.removeSong(song)
-
-        // 2. Remove from Firestore
-        db.collection("users")
-            .document(userId)
-            .collection("playlists")
-            .document(song.playlistId)
-            .collection("songs")
-            .document(song.audioUrl.hashCode().toString())
-            .delete()
-            .await()
+        db.collection("users").document(userId)
+            .collection("playlists").document(song.playlistId)
+            .collection("songs").document(song.audioUrl.hashCode().toString())
+            .delete().await()
     }
 
     // ---------------------------------------------------------------------------
-    // Playlist Operations
+    // Playlists — local Room operations (Firestore writes done in fragments via
+    // real-time listeners so the repo just handles the Room cache here)
     // ---------------------------------------------------------------------------
 
-    /**
-     * Saves a playlist locally and syncs it to Firestore under
-     * users/{userId}/playlists/{playlistId}
-     */
     suspend fun savePlaylist(playlist: PlaylistEntity) = withContext(Dispatchers.IO) {
-        // 1. Save locally
         playlistDao.insertPlaylist(playlist)
-
-        // 2. Sync to Firestore
         val playlistMap = mapOf(
             "id"       to playlist.id,
             "userId"   to playlist.userId,
             "name"     to playlist.name,
             "imageUrl" to playlist.imageUrl
         )
-        db.collection("users")
-            .document(playlist.userId)
-            .collection("playlists")
-            .document(playlist.id)
-            .set(playlistMap)
-            .await()
+        db.collection("users").document(playlist.userId)
+            .collection("playlists").document(playlist.id)
+            .set(playlistMap).await()
     }
 
-    suspend fun getPlaylist(id: String): PlaylistEntity? = withContext(Dispatchers.IO) {
-        playlistDao.getPlaylistById(id)
-    }
+    suspend fun getPlaylist(id: String): PlaylistEntity? =
+        withContext(Dispatchers.IO) { playlistDao.getPlaylistById(id) }
 
     fun getPlaylistsByUserLive(userId: String): LiveData<List<PlaylistEntity>> =
         playlistDao.getPlaylistsByUserLive(userId)
@@ -138,73 +96,34 @@ class MusicRepository(
     fun getAllPlaylistsLive(): LiveData<List<PlaylistEntity>> =
         playlistDao.getAllPlaylistsLive()
 
-    /**
-     * Deletes a playlist from Room and from Firestore (including its songs sub-collection).
-     */
     suspend fun deletePlaylist(id: String, userId: String) = withContext(Dispatchers.IO) {
-        // 1. Delete locally
         playlistDao.deleteSongsByPlaylistId(id)
         playlistDao.deletePlaylistById(id)
-
-        // 2. Delete the playlist document from Firestore.
-        //    Note: Firestore does NOT auto-delete sub-collections, so we first
-        //    delete all song documents, then the playlist document itself.
-        val playlistRef = db.collection("users")
-            .document(userId)
-            .collection("playlists")
-            .document(id)
-
+        val playlistRef = db.collection("users").document(userId)
+            .collection("playlists").document(id)
         val songsSnapshot = playlistRef.collection("songs").get().await()
-        for (songDoc in songsSnapshot.documents) {
-            songDoc.reference.delete().await()
-        }
+        songsSnapshot.documents.forEach { it.reference.delete().await() }
         playlistRef.delete().await()
     }
 
     suspend fun updatePlaylistDetails(
-        playlistId: String,
-        userId: String,
-        newName: String,
-        newImage: String
+        playlistId: String, userId: String, newName: String, newImage: String
     ) = withContext(Dispatchers.IO) {
-        val playlist = PlaylistEntity(
-            id = playlistId,
-            userId = userId,
-            name = newName,
-            imageUrl = newImage
+        playlistDao.insertPlaylist(
+            PlaylistEntity(id = playlistId, userId = userId, name = newName, imageUrl = newImage)
         )
-        // 1. Update locally (insertPlaylist uses REPLACE strategy)
-        playlistDao.insertPlaylist(playlist)
-
-        // 2. Update in Firestore
-        db.collection("users")
-            .document(userId)
-            .collection("playlists")
-            .document(playlistId)
-            .update(
-                mapOf(
-                    "name"     to newName,
-                    "imageUrl" to newImage
-                )
-            )
-            .await()
+        db.collection("users").document(userId)
+            .collection("playlists").document(playlistId)
+            .update(mapOf("name" to newName, "imageUrl" to newImage)).await()
     }
 
     // ---------------------------------------------------------------------------
-    // Cloud Sync — call this once after login to pull the user's playlists
-    // and songs from Firestore into the local Room database.
+    // Cloud sync — called once after login to seed Room from Firestore
     // ---------------------------------------------------------------------------
 
-    /**
-     * Fetches all playlists (and their songs) for [userId] from Firestore and
-     * caches them in the local Room database.  Safe to call every login.
-     */
     suspend fun syncPlaylistsFromFirestore(userId: String) = withContext(Dispatchers.IO) {
-        val playlistsSnapshot = db.collection("users")
-            .document(userId)
-            .collection("playlists")
-            .get()
-            .await()
+        val playlistsSnapshot = db.collection("users").document(userId)
+            .collection("playlists").get().await()
 
         for (playlistDoc in playlistsSnapshot.documents) {
             val entity = PlaylistEntity(
@@ -215,12 +134,7 @@ class MusicRepository(
             )
             playlistDao.insertPlaylist(entity)
 
-            // Fetch songs for this playlist
-            val songsSnapshot = playlistDoc.reference
-                .collection("songs")
-                .get()
-                .await()
-
+            val songsSnapshot = playlistDoc.reference.collection("songs").get().await()
             for (songDoc in songsSnapshot.documents) {
                 val songEntity = SongEntity(
                     audioUrl   = songDoc.getString("audioUrl")   ?: continue,
@@ -233,5 +147,48 @@ class MusicRepository(
                 songDao.addSong(songEntity)
             }
         }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Real-time playlist listener — call this after login and keep the
+    // returned ListenerRegistration to remove it on logout/destroy
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Attaches a real-time Firestore listener that keeps Room in sync whenever
+     * any playlist is created, updated, or deleted on any device.
+     * Returns the [ListenerRegistration] — caller must call .remove() on it.
+     */
+    fun listenToPlaylists(userId: String): ListenerRegistration {
+        return db.collection("users").document(userId)
+            .collection("playlists")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+
+                for (change in snapshot.documentChanges) {
+                    val doc = change.document
+                    val entity = PlaylistEntity(
+                        id       = doc.getString("id")       ?: doc.id,
+                        userId   = doc.getString("userId")   ?: userId,
+                        name     = doc.getString("name")     ?: "",
+                        imageUrl = doc.getString("imageUrl") ?: ""
+                    )
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> {
+                            // Run on IO thread — Room operations can't be on main thread
+                            repositoryScope.launch {
+                                playlistDao.insertPlaylist(entity)
+                            }
+                        }
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> {
+                            repositoryScope.launch {
+                                playlistDao.deletePlaylistById(entity.id)
+                                playlistDao.deleteSongsByPlaylistId(entity.id)
+                            }
+                        }
+                    }
+                }
+            }
     }
 }

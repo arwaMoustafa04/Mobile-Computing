@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/black">
+    android:background="@color/black">
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragment_container"
@@ -16,15 +16,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="#1A1A1A"
-        android:padding="8dp"
+        android:background="@color/dark_surface"
+        android:padding="@dimen/spacing_md"
         android:gravity="center_vertical"
         android:visibility="gone">
 
         <ImageView
             android:id="@+id/miniAlbumArt"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
+            android:layout_width="@dimen/mini_album_art_size"
+            android:layout_height="@dimen/mini_album_art_size"
             android:scaleType="centerCrop"
             android:src="@drawable/placeholder_image" />
 
@@ -33,13 +33,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:layout_marginStart="12dp">
+            android:layout_marginStart="@dimen/spacing_lg">
 
             <TextView
                 android:id="@+id/miniSongTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Song Title"
+                android:text="@string/label_song_title_placeholder"
                 android:textColor="@color/white"
                 android:textStyle="bold"
                 android:maxLines="1"
@@ -49,50 +49,50 @@
                 android:id="@+id/miniArtistName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Artist"
-                android:textColor="@android:color/darker_gray"
-                android:textSize="12sp" />
+                android:text="@string/label_artist_placeholder"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/text_xs" />
         </LinearLayout>
 
         <ImageButton
             android:id="@+id/btnPrev"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="@dimen/btn_icon_lg"
+            android:layout_height="@dimen/btn_icon_lg"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_previous"
-            android:contentDescription="Previous" />
+            android:contentDescription="@string/cd_previous" />
 
         <ImageButton
             android:id="@+id/btnPlayPause"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="12dp"
+            android:layout_width="@dimen/btn_icon_xl"
+            android:layout_height="@dimen/btn_icon_xl"
+            android:padding="@dimen/spacing_lg"
             android:scaleType="fitCenter"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_media_play" />
 
         <ImageButton
             android:id="@+id/btnNext"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="@dimen/btn_icon_lg"
+            android:layout_height="@dimen/btn_icon_lg"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_next"
-            android:contentDescription="Next" />
+            android:contentDescription="@string/cd_next" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/bottomNav"
-        android:layout_marginBottom="50dp"
+        android:layout_marginBottom="@dimen/bottom_nav_margin_bottom"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="12dp">
+        android:padding="@dimen/spacing_lg">
 
         <ImageButton
             android:id="@+id/profileBtn"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="@dimen/btn_icon_size"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="centerInside"
@@ -101,7 +101,7 @@
         <ImageButton
             android:id="@+id/searchBtn"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="@dimen/btn_icon_size"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="centerInside"
@@ -110,7 +110,7 @@
         <ImageButton
             android:id="@+id/libraryBtn"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="@dimen/btn_icon_size"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="centerInside"

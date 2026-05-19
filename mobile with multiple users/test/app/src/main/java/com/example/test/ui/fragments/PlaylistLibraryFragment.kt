@@ -1,5 +1,7 @@
 package com.example.test.ui.fragments
 
+// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
+
 import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -28,6 +30,8 @@ import com.example.test.data.ui.MusicViewModel
 import com.example.test.data.ui.MusicViewModelFactory
 import com.example.test.databinding.FragmentPlaylistLibraryBinding
 import com.example.test.util.CloudinaryUploader
+import com.example.test.util.NetworkUtils
+import com.example.test.util.UiState
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -41,7 +45,6 @@ class PlaylistLibraryFragment : Fragment() {
     private lateinit var adapter: PlaylistAdapter
     private lateinit var auth: FirebaseAuth
 
-    // Dialog state
     private var dialogCoverImageView: ImageView? = null
     private var dialogCreateButton: View? = null
     private var pendingCoverUrl: String? = null
@@ -69,12 +72,15 @@ class PlaylistLibraryFragment : Fragment() {
 
         setupRecyclerView()
         observePlaylists()
+        observeErrors()
+        startRealtimeSync()
+
         binding.btnNewPlaylist.setOnClickListener { showCreatePlaylistDialog() }
     }
 
     private fun setupRecyclerView() {
         adapter = PlaylistAdapter(
-            onPlaylistClick = { playlist -> openPlaylist(playlist) },
+            onPlaylistClick = { openPlaylist(it) },
             onMoreClick     = { playlist, anchor -> showPlaylistOptionsMenu(playlist, anchor) }
         )
         binding.rvPlaylists.layoutManager = LinearLayoutManager(requireContext())
@@ -87,6 +93,24 @@ class PlaylistLibraryFragment : Fragment() {
             adapter.updatePlaylists(playlists)
             binding.tvEmpty.visibility = if (playlists.isEmpty()) View.VISIBLE else View.GONE
         }
+    }
+
+    private fun observeErrors() {
+        viewModel.error.observe(viewLifecycleOwner) { message ->
+            if (!message.isNullOrEmpty()) {
+                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+                viewModel.clearError()
+            }
+        }
+        // Show offline notice if we're not online
+        if (!NetworkUtils.isOnline(requireContext())) {
+            Toast.makeText(requireContext(), getString(R.string.msg_offline), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun startRealtimeSync() {
+        val userId = auth.currentUser?.uid ?: return
+        viewModel.startPlaylistListener(userId)
     }
 
     private fun openPlaylist(playlist: PlaylistEntity) {
@@ -103,7 +127,14 @@ class PlaylistLibraryFragment : Fragment() {
         val popup = PopupMenu(requireContext(), anchor)
         popup.menu.add("Delete Playlist")
         popup.setOnMenuItemClickListener { item ->
-            if (item.title == "Delete Playlist") { confirmDelete(playlist); true } else false
+            if (item.title == "Delete Playlist") {
+                if (!NetworkUtils.isOnline(requireContext())) {
+                    Toast.makeText(requireContext(), "Can't delete while offline.", Toast.LENGTH_SHORT).show()
+                } else {
+                    confirmDelete(playlist)
+                }
+                true
+            } else false
         }
         popup.show()
     }
@@ -121,20 +152,23 @@ class PlaylistLibraryFragment : Fragment() {
     }
 
     private fun showCreatePlaylistDialog() {
-        pendingCoverUrl = null
+        if (!NetworkUtils.isOnline(requireContext())) {
+            Toast.makeText(requireContext(), "You're offline. Can't create playlists right now.", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_create_playlist, null)
-        val etName     = dialogView.findViewById<EditText>(R.id.etNewPlaylistName)
-        val imgPreview = dialogView.findViewById<ImageView>(R.id.imgNewPlaylistCover)
-        val btnPickImg = dialogView.findViewById<View>(R.id.btnPickCoverImage)
-        val btnCreate  = dialogView.findViewById<View>(R.id.btnCreatePlaylist)
-        val btnCancel  = dialogView.findViewById<View>(R.id.btnCancelCreate)
+        pendingCoverUrl = null
+        val dialogView  = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_create_playlist, null)
+        val etName      = dialogView.findViewById<EditText>(R.id.etNewPlaylistName)
+        val imgPreview  = dialogView.findViewById<ImageView>(R.id.imgNewPlaylistCover)
+        val btnPickImg  = dialogView.findViewById<View>(R.id.btnPickCoverImage)
+        val btnCreate   = dialogView.findViewById<View>(R.id.btnCreatePlaylist)
+        val btnCancel   = dialogView.findViewById<View>(R.id.btnCancelCreate)
 
         dialogCoverImageView = imgPreview
         dialogCreateButton   = btnCreate
 
-        val dialog = AlertDialog.Builder(requireContext())
-            .setView(dialogView).create()
+        val dialog = AlertDialog.Builder(requireContext()).setView(dialogView).create()
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
         btnPickImg.setOnClickListener {
@@ -148,12 +182,7 @@ class PlaylistLibraryFragment : Fragment() {
             if (userId == null) { Toast.makeText(requireContext(), "User not logged in", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
 
             viewModel.createPlaylist(
-                PlaylistEntity(
-                    id       = UUID.randomUUID().toString(),
-                    userId   = userId,
-                    name     = name,
-                    imageUrl = pendingCoverUrl ?: ""
-                )
+                PlaylistEntity(id = UUID.randomUUID().toString(), userId = userId, name = name, imageUrl = pendingCoverUrl ?: "")
             )
             Toast.makeText(requireContext(), "\"$name\" created!", Toast.LENGTH_SHORT).show()
             dialog.dismiss()

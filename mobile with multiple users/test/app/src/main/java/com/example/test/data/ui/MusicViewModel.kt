@@ -1,5 +1,7 @@
 package com.example.test.data.ui
 
+// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
+
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -9,6 +11,8 @@ import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.local.entity.UserEntity
 import com.example.test.data.repository.MusicRepository
+import com.example.test.util.UiState
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
 
 class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
@@ -19,15 +23,19 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
     private val _songs = MutableLiveData<List<SongEntity>>()
     val songs: LiveData<List<SongEntity>> = _songs
 
+    // General-purpose error message (one-shot toast/snackbar events)
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
 
-    /**
-     * Fires true once syncPlaylistsFromCloud finishes.
-     * LoginFragment observes this to navigate ONLY after Room is populated.
-     */
+    // Structured UI state for screens that show loading spinners / offline banners
+    private val _syncState = MutableLiveData<UiState<Unit>>()
+    val syncState: LiveData<UiState<Unit>> = _syncState
+
+    // Fires true once the post-login cloud sync finishes so LoginFragment can navigate
     private val _syncComplete = MutableLiveData<Boolean>()
     val syncComplete: LiveData<Boolean> = _syncComplete
+
+    private var playlistListenerRegistration: ListenerRegistration? = null
 
     val allPlaylists: LiveData<List<PlaylistEntity>> = repository.getAllPlaylistsLive()
 
@@ -38,15 +46,33 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
         repository.getUser(userId).asLiveData()
 
     fun saveUser(user: UserEntity) {
-        viewModelScope.launch { repository.saveUser(user) }
+        viewModelScope.launch {
+            try {
+                repository.saveUser(user)
+            } catch (e: Exception) {
+                _error.postValue("Failed to save user: ${e.message}")
+            }
+        }
     }
 
     fun loadPlaylist(id: String) {
-        viewModelScope.launch { _playlist.value = repository.getPlaylist(id) }
+        viewModelScope.launch {
+            try {
+                _playlist.value = repository.getPlaylist(id)
+            } catch (e: Exception) {
+                _error.postValue("Failed to load playlist: ${e.message}")
+            }
+        }
     }
 
     fun loadSongs(playlistId: String) {
-        viewModelScope.launch { _songs.postValue(repository.getSongsByPlaylist(playlistId)) }
+        viewModelScope.launch {
+            try {
+                _songs.postValue(repository.getSongsByPlaylist(playlistId))
+            } catch (e: Exception) {
+                _error.postValue("Failed to load songs: ${e.message}")
+            }
+        }
     }
 
     fun addSongToPlaylist(song: SongEntity, userId: String) {
@@ -103,19 +129,42 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
     }
 
     /**
-     * Fetches all playlists + songs from Firestore into local Room DB.
-     * Posts to [syncComplete] when done so LoginFragment knows it's safe to navigate.
+     * Post-login sync: pulls all playlists + songs from Firestore into Room.
+     * Exposes [UiState] so the UI can show a loading spinner during sync.
+     * Falls back gracefully — if offline or sync fails, Room cache is used.
      */
     fun syncPlaylistsFromCloud(userId: String) {
+        _syncState.postValue(UiState.Loading)
         viewModelScope.launch {
             try {
                 repository.syncPlaylistsFromFirestore(userId)
+                _syncState.postValue(UiState.Success(Unit))
             } catch (e: Exception) {
-                _error.postValue("Sync failed: ${e.message}")
+                // Sync failed but Room may already have cached data — still navigate
+                _syncState.postValue(UiState.Error("Sync failed: ${e.message}"))
             } finally {
-                // Always navigate, even if sync threw — Room may already have cached data
                 _syncComplete.postValue(true)
             }
         }
+    }
+
+    fun startPlaylistListener(userId: String) {
+        if (playlistListenerRegistration != null) return
+        playlistListenerRegistration = repository.listenToPlaylists(userId)
+    }
+
+    fun stopPlaylistListener() {
+        playlistListenerRegistration?.remove()
+        playlistListenerRegistration = null
+    }
+
+    /** Clears a shown error so it doesn't re-show after rotation / resubscription */
+    fun clearError() {
+        _error.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopPlaylistListener()
     }
 }
