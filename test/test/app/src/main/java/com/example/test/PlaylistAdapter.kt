@@ -9,32 +9,30 @@ import com.bumptech.glide.Glide
 import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.databinding.ItemPlaylistBinding
 
-
 class PlaylistAdapter(
-    private var playlists: List<PlaylistEntity> = emptyList(),
     private val onPlaylistClick: (PlaylistEntity) -> Unit,
     private val onMoreClick: (PlaylistEntity, View) -> Unit
-) : RecyclerView.Adapter<PlaylistAdapter.ViewHolder>() {
+) : RecyclerView.Adapter<PlaylistAdapter.PlaylistViewHolder>() {
 
-    inner class ViewHolder(val binding: ItemPlaylistBinding) :
+    private var playlists: List<PlaylistEntity> = emptyList()
+
+    inner class PlaylistViewHolder(val binding: ItemPlaylistBinding) :
         RecyclerView.ViewHolder(binding.root)
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlaylistViewHolder {
         val binding = ItemPlaylistBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
         )
-        return ViewHolder(binding)
+        return PlaylistViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: PlaylistViewHolder, position: Int) {
         val playlist = playlists[position]
         holder.binding.tvPlaylistName.text = playlist.name
-        holder.binding.tvSongCount.text = holder.itemView.context.getString(R.string.label_by_you)
-
+        
         Glide.with(holder.itemView.context)
             .load(playlist.imageUrl)
             .placeholder(R.drawable.placeholder_image)
-            .centerCrop()
             .into(holder.binding.imgPlaylistCover)
 
         holder.itemView.setOnClickListener { onPlaylistClick(playlist) }
