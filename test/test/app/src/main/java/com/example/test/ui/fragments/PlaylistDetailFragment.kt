@@ -87,16 +87,16 @@ class PlaylistDetailFragment : Fragment() {
         setupRecyclerView()
         setupObservers()
         viewModel.loadPlaylist(playlistId)
-        
-        auth.currentUser?.uid?.let { userId ->
-            viewModel.refreshPlaylistSongs(playlistId, userId)
-        }
+        viewModel.loadSongs(playlistId)
+
+        binding.edit.setOnClickListener { showEditDialog() }
 
         binding.btnAddSong.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, LibraryFragment.newInstance(playlistId))
                 .addToBackStack(null).commit()
         }
+        binding.edit.setOnClickListener { showEditDialog() }
 
         if (MusicPlayerManager.isInitialized()) attachPlayerListeners()
         else MusicPlayerManager.initialize(requireContext()) { if (isAdded) attachPlayerListeners() }
