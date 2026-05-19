@@ -11,7 +11,7 @@ import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.local.entity.UserEntity
 
-@Database(entities = [SongEntity::class, PlaylistEntity::class, UserEntity::class], version = 3)
+@Database(entities = [SongEntity::class, PlaylistEntity::class, UserEntity::class], version = 8)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
     abstract fun playlistDao(): PlaylistDao

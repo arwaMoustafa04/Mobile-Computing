@@ -12,6 +12,9 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists WHERE id = :id")
     suspend fun getPlaylistById(id: String): PlaylistEntity?
 
+    @Query("SELECT * FROM playlists WHERE userId = :userId ORDER BY name ASC")
+    fun getPlaylistsByUserLive(userId: String): LiveData<List<PlaylistEntity>>
+
     @Query("SELECT * FROM playlists ORDER BY name ASC")
     fun getAllPlaylistsLive(): LiveData<List<PlaylistEntity>>
 

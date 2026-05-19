@@ -2,17 +2,20 @@ package com.example.test.ui.fragments
 
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.PopupMenu
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -29,18 +32,16 @@ import com.example.test.data.ui.MusicViewModel
 import com.example.test.data.ui.MusicViewModelFactory
 import com.example.test.databinding.FragmentPlaylistDetailBinding
 import com.example.test.player.MusicPlayerManager
+import com.example.test.util.CloudinaryUploader
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 class PlaylistDetailFragment : Fragment() {
 
     companion object {
         private const val ARG_PLAYLIST_ID = "playlist_id"
-
-        fun newInstance(playlistId: String): PlaylistDetailFragment {
-            return PlaylistDetailFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PLAYLIST_ID, playlistId)
-                }
-            }
+        fun newInstance(playlistId: String) = PlaylistDetailFragment().apply {
+            arguments = Bundle().apply { putString(ARG_PLAYLIST_ID, playlistId) }
         }
     }
 
@@ -49,78 +50,60 @@ class PlaylistDetailFragment : Fragment() {
 
     private lateinit var viewModel: MusicViewModel
     private lateinit var adapter: SongAdapter
+    private lateinit var auth: FirebaseAuth
     private var playerListener: Player.Listener? = null
+
+    // Edit dialog state
+    private var dialogCoverPreview: ImageView? = null
+    private var dialogSaveButton: Button? = null
+    private var pendingCoverUrl: String? = null
 
     private val playlistId: String
         get() = arguments?.getString(ARG_PLAYLIST_ID) ?: "test_playlist"
 
-    private var currentPlaylistMetadata = Playlist(
-        id = "test_playlist",
-        name = "My Playlist",
-        imageUrl = ""
-    )
+    private var currentPlaylistMetadata = Playlist("test_playlist", "My Playlist", "")
 
-    private val pickMedia = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            try {
-                val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                requireContext().contentResolver.takePersistableUriPermission(uri, flag)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            currentPlaylistMetadata = currentPlaylistMetadata.copy(imageUrl = uri.toString())
-            updateUI(currentPlaylistMetadata.name, currentPlaylistMetadata.imageUrl)
+    private val pickMedia =
+        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) uploadCoverImage(uri)
         }
-    }
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentPlaylistDetailBinding.inflate(inflater, container, false)
+        auth = FirebaseAuth.getInstance()
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val database = AppDatabase.getDatabase(requireContext())
-        // Merged repository initialization (ensuring all necessary DAOs are passed)
+        val database   = AppDatabase.getDatabase(requireContext())
         val repository = MusicRepository(database.songDao(), database.playlistDao(), database.userDao())
-        val factory = MusicViewModelFactory(repository)
-        viewModel = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
+        val factory    = MusicViewModelFactory(repository)
+        viewModel      = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
 
         setupRecyclerView()
         setupObservers()
-
         viewModel.loadPlaylist(playlistId)
         viewModel.loadSongs(playlistId)
 
         binding.btnAddSong.setOnClickListener {
-            // Merged navigation: Passes current ID to LibraryFragment so it knows the target
-            val libraryFragment = LibraryFragment.newInstance(playlistId)
             parentFragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, libraryFragment)
-                .addToBackStack(null)
-                .commit()
+                .replace(R.id.fragment_container, LibraryFragment.newInstance(playlistId))
+                .addToBackStack(null).commit()
         }
+        binding.edit.setOnClickListener { showEditDialog() }
 
-        binding.edit.setOnClickListener {
-            showEditDialog()
-        }
-
-        if (MusicPlayerManager.isInitialized()) {
-            attachPlayerListeners()
-        } else {
-            MusicPlayerManager.initialize(requireContext()) {
-                if (isAdded) attachPlayerListeners()
-            }
-        }
+        if (MusicPlayerManager.isInitialized()) attachPlayerListeners()
+        else MusicPlayerManager.initialize(requireContext()) { if (isAdded) attachPlayerListeners() }
     }
 
     private fun attachPlayerListeners() {
         playerListener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                // Keep list highlight in sync with playback
                 adapter.notifyDataSetChanged()
-                // Ensure MiniPlayer updates when songs skip automatically
                 (activity as? MainActivity)?.updateMiniPlayerUI()
             }
         }
@@ -129,17 +112,14 @@ class PlaylistDetailFragment : Fragment() {
 
     private fun setupRecyclerView() {
         adapter = SongAdapter(
-            songs = emptyList(),
-            onSongClick = { song ->
+            songs         = emptyList(),
+            onSongClick   = { song ->
                 val songs = adapter.getSongs()
-                val index = songs.indexOf(song)
-                playPlaylistSongs(songs, index)
+                playPlaylistSongs(songs, songs.indexOf(song))
             },
-            onAddClick = null,
+            onAddClick    = null,
             showAddButton = false,
-            onOptionsClick = { song, anchorView ->
-                showSongOptionsPopup(song, anchorView)
-            }
+            onOptionsClick = { song, anchor -> showSongOptionsPopup(song, anchor) }
         )
         binding.playlistRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.playlistRecyclerView.adapter = adapter
@@ -149,7 +129,6 @@ class PlaylistDetailFragment : Fragment() {
         val popup = PopupMenu(requireContext(), anchorView)
         popup.menu.add("Add to Queue")
         popup.menu.add("Remove from Playlist")
-
         popup.setOnMenuItemClickListener { item ->
             when (item.title) {
                 "Add to Queue" -> {
@@ -158,8 +137,12 @@ class PlaylistDetailFragment : Fragment() {
                     true
                 }
                 "Remove from Playlist" -> {
-                    val entity = SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, playlistId)
-                    viewModel.removeSongFromPlaylist(entity)
+                    auth.currentUser?.uid?.let { userId ->
+                        viewModel.removeSongFromPlaylist(
+                            SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, playlistId),
+                            userId
+                        )
+                    }
                     true
                 }
                 else -> false
@@ -171,57 +154,93 @@ class PlaylistDetailFragment : Fragment() {
     private fun setupObservers() {
         viewModel.playlist.observe(viewLifecycleOwner) { entity ->
             entity?.let {
+                val imageChanged = it.imageUrl != currentPlaylistMetadata.imageUrl
                 currentPlaylistMetadata = Playlist(it.id, it.name, it.imageUrl)
-                updateUI(it.name, it.imageUrl)
+                updateUI(it.name, it.imageUrl, skipImageCache = imageChanged)
             }
         }
-
         viewModel.songs.observe(viewLifecycleOwner) { dbSongs ->
-            val songList = dbSongs.map { Song(it.title, it.artist, it.imageUrl, it.audioUrl) }
-            adapter.updateSongs(songList)
+            adapter.updateSongs(dbSongs.map { Song(it.title, it.artist, it.imageUrl, it.audioUrl) })
         }
     }
 
-    private fun updateUI(name: String, imageUrl: String) {
+    private fun updateUI(name: String, imageUrl: String, skipImageCache: Boolean = false) {
         binding.playlistTitle.text = name
-        Glide.with(this)
+        val glideRequest = Glide.with(this)
             .load(imageUrl)
             .placeholder(R.drawable.placeholder_image)
-            .into(binding.playlistArt)
+            .error(R.drawable.placeholder_image)
+        if (skipImageCache) {
+            glideRequest
+                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
+        }
+        glideRequest.into(binding.playlistArt)
     }
 
     private fun playPlaylistSongs(songs: List<Song>, index: Int) {
         if (!MusicPlayerManager.isInitialized()) return
-        MusicPlayerManager.playPlaylist(songs, index)
+        MusicPlayerManager.playPlaylist(songs, index, playlistId)
         adapter.notifyDataSetChanged()
         (activity as? MainActivity)?.updateMiniPlayerUI()
     }
 
     private fun showEditDialog() {
+        pendingCoverUrl = null
+
         val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_edit_playlist, null)
-        val nameInput = dialogView.findViewById<android.widget.EditText>(R.id.etPlaylistName)
-        val btnSave = dialogView.findViewById<android.widget.Button>(R.id.btnSave)
-        val btnUpload = dialogView.findViewById<Button>(R.id.btnUploadImage)
+        val nameInput  = dialogView.findViewById<android.widget.EditText>(R.id.etPlaylistName)
+        val ivPreview  = dialogView.findViewById<ImageView>(R.id.ivCoverPreview)
+        val btnChange  = dialogView.findViewById<Button>(R.id.btnUploadImage)
+        val btnSave    = dialogView.findViewById<Button>(R.id.btnSave)
 
         nameInput.setText(currentPlaylistMetadata.name)
+        Glide.with(this).load(currentPlaylistMetadata.imageUrl)
+            .placeholder(R.drawable.placeholder_image).into(ivPreview)
+
+        dialogCoverPreview = ivPreview
+        dialogSaveButton   = btnSave
 
         val dialog = android.app.AlertDialog.Builder(requireContext())
-            .setView(dialogView)
-            .create()
+            .setView(dialogView).create()
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
+        btnChange.setOnClickListener {
+            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+
         btnSave.setOnClickListener {
-            val newName = nameInput.text.toString()
-            if (newName.isNotEmpty()) {
-                viewModel.updatePlaylist(playlistId, newName, currentPlaylistMetadata.imageUrl)
+            val newName = nameInput.text.toString().trim()
+            val userId  = auth.currentUser?.uid
+            if (newName.isNotEmpty() && userId != null) {
+                viewModel.updatePlaylist(playlistId, userId, newName, pendingCoverUrl ?: currentPlaylistMetadata.imageUrl)
                 dialog.dismiss()
             }
         }
 
-        btnUpload.setOnClickListener {
-            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }
+        dialog.setOnDismissListener { dialogCoverPreview = null; dialogSaveButton = null }
         dialog.show()
+    }
+
+    private fun uploadCoverImage(uri: Uri) {
+        dialogSaveButton?.isEnabled = false
+        Toast.makeText(requireContext(), "Uploading cover…", Toast.LENGTH_SHORT).show()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val url = CloudinaryUploader.upload(requireContext(), uri)
+                pendingCoverUrl = url
+                dialogCoverPreview?.let { iv ->
+                    Glide.with(this@PlaylistDetailFragment).load(url)
+                        .placeholder(R.drawable.placeholder_image).into(iv)
+                }
+                Toast.makeText(requireContext(), "Cover ready — tap Save", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Cover upload failed: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                dialogSaveButton?.isEnabled = true
+            }
+        }
     }
 
     override fun onDestroyView() {
@@ -229,6 +248,8 @@ class PlaylistDetailFragment : Fragment() {
         if (MusicPlayerManager.isInitialized() && playerListener != null) {
             MusicPlayerManager.player.removeListener(playerListener!!)
         }
+        dialogCoverPreview = null
+        dialogSaveButton   = null
         _binding = null
     }
 }

@@ -3,29 +3,34 @@ package com.example.test.player
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
-import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.musicplayer.Song
+import android.util.Log
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 
 object MusicPlayerManager {
+
     private const val TAG = "MusicPlayerManager"
     private const val QUEUE_PREFIX = "media_queue_"
-
     private var _player: Player? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
-
+    
     val player: Player
         get() = _player ?: throw IllegalStateException("Player not initialized.")
 
     var activePlaybackList = mutableListOf<Song>()
+    var activePlaylistId: String? = null
     var currentSong: Song? = null
     var currentSongIndex: Int = -1
+
     private var lastMediaId: String? = null
 
     var onStateChanged: (() -> Unit)? = null
@@ -42,7 +47,6 @@ object MusicPlayerManager {
 
             if (idToRemove != null && idToRemove.startsWith(QUEUE_PREFIX)) {
                 // We only remove it if it's NOT the one currently playing
-                // (This happens if you skip backward or the player loops)
                 if (idToRemove != mediaItem?.mediaId) {
                     removeMediaItemById(idToRemove)
                 }
@@ -57,6 +61,12 @@ object MusicPlayerManager {
                 updateCurrentSongState()
             }
         }
+
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            // Keep our local list in sync whenever the player's timeline changes
+            syncWithPlayerTimeline()
+            onStateChanged?.invoke()
+        }
     }
 
     fun initialize(context: Context, onReady: (() -> Unit)? = null) {
@@ -65,6 +75,7 @@ object MusicPlayerManager {
             return
         }
 
+        val mainHandler = Handler(Looper.getMainLooper())
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         controllerFuture?.addListener({
@@ -74,9 +85,10 @@ object MusicPlayerManager {
                 controller?.addListener(playerListener)
                 lastMediaId = controller?.currentMediaItem?.mediaId
                 syncWithPlayerTimeline()
-                onReady?.invoke()
+                mainHandler.post { onReady?.invoke() }
             } catch (e: Exception) {
                 Log.e(TAG, "Initialization failed", e)
+                mainHandler.post { onReady?.invoke() }
             }
         }, MoreExecutors.directExecutor())
     }
@@ -93,8 +105,6 @@ object MusicPlayerManager {
 
         if (currentIndex in 0 until activePlaybackList.size) {
             currentSongIndex = currentIndex
-            // We get the song from our synced list, which ALREADY has the clean audioUrl
-            // because syncWithPlayerTimeline() calls substringAfterLast("_")
             currentSong = activePlaybackList[currentIndex]
         }
     }
@@ -112,9 +122,6 @@ object MusicPlayerManager {
         }
     }
 
-    /**
-     * Helper to create MediaItems with or without the Queue Prefix
-     */
     private fun createMediaItem(song: Song, isQueued: Boolean): MediaItem {
         val mediaId = if (isQueued) {
             "${QUEUE_PREFIX}${System.nanoTime()}_${song.audioUrl}"
@@ -135,10 +142,10 @@ object MusicPlayerManager {
             .build()
     }
 
-    // RESTORED FUNCTION
-    fun playPlaylist(songs: List<Song>, startIndex: Int) {
+    fun playPlaylist(songs: List<Song>, startIndex: Int, playlistId: String? = null) {
         if (!isInitialized()) return
         val p = player
+        activePlaylistId = playlistId
 
         // 1. SAVE the existing queue items from the current timeline
         val existingQueueItems = mutableListOf<MediaItem>()
@@ -155,9 +162,9 @@ object MusicPlayerManager {
         // 3. Replace the timeline with the new playlist
         p.setMediaItems(playlistItems, startIndex, 0L)
 
-        // 4. RE-INSERT the queue items right after our new starting position
+        // 4. RE-INSERT the queue items at the end of the new timeline
         if (existingQueueItems.isNotEmpty()) {
-            p.addMediaItems(startIndex + 1, existingQueueItems)
+            p.addMediaItems(existingQueueItems)
         }
 
         p.prepare()
@@ -165,6 +172,32 @@ object MusicPlayerManager {
 
         syncWithPlayerTimeline()
     }
+
+    /**
+     * Appends a song to the end of the current player timeline.
+     * Useful when a song is added to the playlist that is currently playing.
+     */
+    fun addSongToEnd(song: Song) {
+        if (!isInitialized()) return
+        val p = player
+        
+        // Ensure we don't add the same song twice if it's already the last one
+        if (p.mediaItemCount > 0) {
+            val lastItem = p.getMediaItemAt(p.mediaItemCount - 1)
+            if (lastItem.mediaId == song.audioUrl) return
+        }
+
+        val mediaItem = createMediaItem(song, isQueued = false)
+        p.addMediaItem(mediaItem)
+        
+        // If the player was idle or ended, prepare it again to pick up the new item
+        if (p.playbackState == Player.STATE_IDLE || p.playbackState == Player.STATE_ENDED) {
+            p.prepare()
+        }
+        
+        syncWithPlayerTimeline()
+    }
+
     fun addSongToQueue(song: Song) {
         if (!isInitialized()) return
         val p = player
@@ -213,7 +246,7 @@ object MusicPlayerManager {
                 title = metadata.title?.toString() ?: "Unknown",
                 artist = metadata.artist?.toString() ?: "Unknown",
                 imageUrl = metadata.artworkUri?.toString() ?: "",
-                audioUrl = cleanUrl // Now the list contains clean URLs!
+                audioUrl = cleanUrl
             ))
         }
         activePlaybackList = newList
@@ -221,7 +254,7 @@ object MusicPlayerManager {
         val currentIndex = p.currentMediaItemIndex
         if (currentIndex in 0 until activePlaybackList.size) {
             currentSongIndex = currentIndex
-            currentSong = activePlaybackList[currentIndex] // currentSong is now also clean!
+            currentSong = activePlaybackList[currentIndex]
         }
     }
 }

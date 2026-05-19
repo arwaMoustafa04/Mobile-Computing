@@ -4,26 +4,25 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/black">
+    android:background="@color/black">
 
-    <!-- Header Row -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingEnd="16dp"
+        android:paddingStart="@dimen/spacing_xxl"
+        android:paddingEnd="@dimen/spacing_xl"
         android:paddingTop="48dp"
-        android:paddingBottom="16dp"
+        android:paddingBottom="@dimen/spacing_xl"
         android:gravity="center_vertical">
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Your Playlists"
+            android:text="@string/label_your_playlists"
             android:textColor="@color/white"
-            android:textSize="22sp"
+            android:textSize="@dimen/text_title"
             android:textStyle="bold" />
 
         <LinearLayout
@@ -32,51 +31,47 @@
             android:layout_height="40dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
+            android:paddingStart="@dimen/spacing_xl"
+            android:paddingEnd="@dimen/spacing_xl"
             android:background="@drawable/bg_new_playlist_btn">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="+"
-                android:textColor="@android:color/black"
-                android:textSize="20sp"
+                android:text="@string/label_new_playlist_plus"
+                android:textColor="@color/black"
+                android:textSize="@dimen/text_xxl"
                 android:textStyle="bold"
-                android:paddingEnd="4dp" />
+                android:paddingEnd="@dimen/spacing_sm" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="New playlist"
-                android:textColor="@android:color/black"
-                android:textSize="14sp"
+                android:text="@string/label_new_playlist"
+                android:textColor="@color/black"
+                android:textSize="@dimen/text_md"
                 android:textStyle="bold" />
-
         </LinearLayout>
-
     </LinearLayout>
 
-    <!-- Empty state -->
     <TextView
         android:id="@+id/tvEmpty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="No playlists yet.\nTap '+ New playlist' to create one!"
-        android:textColor="#888888"
-        android:textSize="15sp"
+        android:text="@string/label_empty_playlists"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_base"
         android:gravity="center"
         android:paddingTop="60dp"
         android:visibility="gone" />
 
-    <!-- Playlist list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvPlaylists"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
+        android:paddingStart="@dimen/spacing_md"
+        android:paddingEnd="@dimen/spacing_md"
         android:clipToPadding="false" />
 
 </LinearLayout>

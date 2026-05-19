@@ -4,16 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
-    android:background="@android:color/black">
+    android:padding="@dimen/spacing_lg"
+    android:background="@color/black">
 
-    <!-- Top Search Bar -->
+    <!-- Search bar row -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp"
-        android:layout_marginTop="15dp"
+        android:padding="@dimen/spacing_lg"
+        android:layout_marginTop="@dimen/spacing_xl"
         android:gravity="center_vertical">
 
         <EditText
@@ -21,35 +21,49 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Search songs"
-            android:layout_marginEnd="8dp"
-            android:padding="10dp"
+            android:hint="@string/hint_search_songs"
+            android:layout_marginEnd="@dimen/spacing_md"
+            android:padding="@dimen/spacing_md"
             android:background="@android:drawable/editbox_background" />
 
         <Button
             android:id="@+id/cancel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="cancel"
+            android:text="@string/label_cancel_search"
             android:visibility="gone"
             android:backgroundTint="@color/black"
             android:textColor="@color/white" />
     </LinearLayout>
 
-    <!-- The "Greedy" RecyclerView that pushes everything else down -->
+    <!-- Offline / empty state banner -->
+    <TextView
+        android:id="@+id/tvOffline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/msg_offline"
+        android:textColor="@color/brand_green"
+        android:textSize="@dimen/text_sm"
+        android:gravity="center"
+        android:padding="@dimen/spacing_md"
+        android:background="@color/dark_surface"
+        android:visibility="gone" />
+
+    <!-- Loading spinner — shown while fetching from Firestore -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="@dimen/spacing_huge"
+        android:visibility="gone" />
+
+    <!-- Song list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="10dp"/>
-
-    <Button
-        android:id="@+id/btnTestPlaylist"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Test Playlist"
-        android:textSize="10sp"
-        android:layout_marginStart="8dp"/>
+        android:layout_marginTop="@dimen/spacing_md"/>
 
 </LinearLayout>
