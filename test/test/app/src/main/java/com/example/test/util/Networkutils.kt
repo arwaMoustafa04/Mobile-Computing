@@ -1,5 +1,7 @@
 package com.example.test.util
 
+// AI-assisted: network connectivity check utility
+
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities

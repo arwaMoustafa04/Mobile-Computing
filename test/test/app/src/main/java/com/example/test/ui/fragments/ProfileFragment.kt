@@ -1,5 +1,7 @@
 package com.example.test.ui.fragments
 
+// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
+
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
@@ -80,8 +82,10 @@ class ProfileFragment : Fragment() {
 
         binding.btnEditProfile.setOnClickListener { showEditDialog() }
         binding.btnLogout.setOnClickListener {
-            auth.signOut()
-            (activity as? MainActivity)?.navigateToLogin()
+            // Remove Firestore listener before logout so it doesn't fire during teardown
+            profileListener?.remove()
+            profileListener = null
+            (activity as? MainActivity)?.logout()
         }
     }
 

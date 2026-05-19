@@ -1,6 +1,5 @@
 package com.example.test.util
 
-
 /**
  * Sealed class representing every possible state a data-loading operation can be in.
  * Fragments observe LiveData<UiState<T>> from the ViewModel and render accordingly.
