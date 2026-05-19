@@ -19,22 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-// ─── UI State ─────────────────────────────────────────────────────────────────
-
-sealed interface UiState {
-    object Idle    : UiState
-    object Loading : UiState
-    data class Success(val songs: List<Song>, val playlistName: String) : UiState
-    data class Error(val message: String) : UiState
-}
-
-sealed interface SaveState {
-    object Idle    : SaveState
-    object Saving  : SaveState
-    object Saved   : SaveState
-    data class Error(val message: String) : SaveState
-}
-
 // ─── ViewModel ────────────────────────────────────────────────────────────────
 
 class PlaylistViewModel : ViewModel() {
