@@ -82,7 +82,7 @@
 
     <LinearLayout
         android:id="@+id/bottomNav"
-        android:layout_marginBottom="@dimen/bottom_nav_margin_bottom"
+        android:fitsSystemWindows="true"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
