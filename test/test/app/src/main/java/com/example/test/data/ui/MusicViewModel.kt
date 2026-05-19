@@ -55,6 +55,9 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
         }
     }
 
+    fun getSongsByPlaylist(playlistId: String): LiveData<List<SongEntity>> =
+        repository.getSongsByPlaylistLive(playlistId)
+
     fun loadPlaylist(id: String) {
         viewModelScope.launch {
             try {
@@ -71,6 +74,16 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
                 _songs.postValue(repository.getSongsByPlaylist(playlistId))
             } catch (e: Exception) {
                 _error.postValue("Failed to load songs: ${e.message}")
+            }
+        }
+    }
+
+    fun refreshPlaylistSongs(playlistId: String, userId: String) {
+        viewModelScope.launch {
+            try {
+                repository.syncSongsForPlaylist(playlistId, userId)
+            } catch (e: Exception) {
+                _error.postValue("Failed to refresh songs: ${e.message}")
             }
         }
     }

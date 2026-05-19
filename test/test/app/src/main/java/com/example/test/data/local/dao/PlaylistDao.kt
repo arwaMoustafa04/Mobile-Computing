@@ -1,7 +1,5 @@
 package com.example.test.data.local.dao
 
-// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
-
 import androidx.room.*
 import androidx.lifecycle.LiveData
 import com.example.test.data.local.entity.PlaylistEntity
@@ -26,7 +24,6 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_songs WHERE playlistId = :id")
     suspend fun deleteSongsByPlaylistId(id: String)
 
-    /** Wipes all playlists — called on logout to clear the previous user's data */
     @Query("DELETE FROM playlists")
     suspend fun deleteAllPlaylists()
 }

@@ -87,14 +87,16 @@ class PlaylistDetailFragment : Fragment() {
         setupRecyclerView()
         setupObservers()
         viewModel.loadPlaylist(playlistId)
-        viewModel.loadSongs(playlistId)
+        
+        auth.currentUser?.uid?.let { userId ->
+            viewModel.refreshPlaylistSongs(playlistId, userId)
+        }
 
         binding.btnAddSong.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, LibraryFragment.newInstance(playlistId))
                 .addToBackStack(null).commit()
         }
-        binding.edit.setOnClickListener { showEditDialog() }
 
         if (MusicPlayerManager.isInitialized()) attachPlayerListeners()
         else MusicPlayerManager.initialize(requireContext()) { if (isAdded) attachPlayerListeners() }
@@ -139,7 +141,14 @@ class PlaylistDetailFragment : Fragment() {
                 "Remove from Playlist" -> {
                     auth.currentUser?.uid?.let { userId ->
                         viewModel.removeSongFromPlaylist(
-                            SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, playlistId),
+                            SongEntity(
+                                audioUrl = song.audioUrl,
+                                title = song.title,
+                                artist = song.artist,
+                                imageUrl = song.imageUrl,
+                                genre = song.genre,
+                                playlistId = playlistId
+                            ),
                             userId
                         )
                     }
@@ -159,8 +168,8 @@ class PlaylistDetailFragment : Fragment() {
                 updateUI(it.name, it.imageUrl, skipImageCache = imageChanged)
             }
         }
-        viewModel.songs.observe(viewLifecycleOwner) { dbSongs ->
-            adapter.updateSongs(dbSongs.map { Song(it.title, it.artist, it.imageUrl, it.audioUrl) })
+        viewModel.getSongsByPlaylist(playlistId).observe(viewLifecycleOwner) { dbSongs ->
+            adapter.updateSongs(dbSongs.map { Song(it.title, it.artist, it.imageUrl, it.audioUrl, it.genre) })
         }
     }
 

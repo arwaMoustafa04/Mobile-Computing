@@ -95,6 +95,23 @@ object MusicPlayerManager {
 
     fun isInitialized(): Boolean = _player != null
 
+    fun reset() {
+        val p = _player ?: return
+        try {
+            p.stop()
+            p.clearMediaItems()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during reset", e)
+        }
+        // Clear all in-memory state
+        activePlaybackList.clear()
+        activePlaylistId  = null
+        currentSong       = null
+        currentSongIndex  = -1
+        lastMediaId       = null
+        onStateChanged    = null
+    }
+
     private fun updateCurrentSongState() {
         val p = _player ?: return
         val currentIndex = p.currentMediaItemIndex
@@ -165,7 +182,22 @@ object MusicPlayerManager {
 
         // 4. RE-INSERT the queue items at the end of the new timeline
         if (existingQueueItems.isNotEmpty()) {
-            p.addMediaItems(existingQueueItems)
+            // Build the timeline so queue songs play immediately after the selected song:
+            // [selected song] [queue songs...] [remaining playlist songs...]
+            val selectedItem  = playlistItems[startIndex]
+            val beforeSelected = playlistItems.subList(0, startIndex)          // songs before tapped song
+            val afterSelected  = playlistItems.subList(startIndex + 1, playlistItems.size) // songs after
+            // Full order: songs before | selected | queue | songs after
+            val reordered = mutableListOf<MediaItem>()
+            reordered.addAll(beforeSelected)
+            reordered.add(selectedItem)
+            reordered.addAll(existingQueueItems)   // queue plays right after selected song
+            reordered.addAll(afterSelected)        // rest of playlist follows queue
+            // Start playback at the selected song's position in the reordered list
+            p.setMediaItems(reordered, startIndex, 0L)
+        } else {
+            // No queue — behave exactly as before
+            p.setMediaItems(playlistItems, startIndex, 0L)
         }
 
         p.prepare()
@@ -238,7 +270,7 @@ object MusicPlayerManager {
                 val first = rawId.indexOf("_")
                 val second = rawId.indexOf("_", first + 1)
                 val third = rawId.indexOf("_", second + 1)
-                if (third != -1) rawId.substring(third + 1) else rawId
+                rawId.substring(third + 1)
             } else {
                 rawId
             }

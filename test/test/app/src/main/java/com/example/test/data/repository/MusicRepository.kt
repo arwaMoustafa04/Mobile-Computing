@@ -49,6 +49,7 @@ class MusicRepository(
             "title"      to song.title,
             "artist"     to song.artist,
             "imageUrl"   to song.imageUrl,
+            "genre"      to song.genre,
             "playlistId" to song.playlistId,
             "addedAt"    to song.addedAt
         )
@@ -60,6 +61,9 @@ class MusicRepository(
 
     suspend fun getSongsByPlaylist(playlistId: String): List<SongEntity> =
         withContext(Dispatchers.IO) { songDao.getSongsByPlaylist(playlistId) }
+
+    fun getSongsByPlaylistLive(playlistId: String): LiveData<List<SongEntity>> =
+        songDao.getSongsByPlaylistLive(playlistId)
 
     suspend fun removeSong(song: SongEntity, userId: String) = withContext(Dispatchers.IO) {
         songDao.removeSong(song)
@@ -141,11 +145,30 @@ class MusicRepository(
                     title      = songDoc.getString("title")      ?: "",
                     artist     = songDoc.getString("artist")     ?: "",
                     imageUrl   = songDoc.getString("imageUrl")   ?: "",
+                    genre      = songDoc.getString("genre")      ?: "",
                     playlistId = songDoc.getString("playlistId") ?: entity.id,
                     addedAt    = songDoc.getLong("addedAt")      ?: System.currentTimeMillis()
                 )
                 songDao.addSong(songEntity)
             }
+        }
+    }
+
+    suspend fun syncSongsForPlaylist(playlistId: String, userId: String) = withContext(Dispatchers.IO) {
+        val songsSnapshot = db.collection("users").document(userId)
+            .collection("playlists").document(playlistId)
+            .collection("songs").get().await()
+        for (songDoc in songsSnapshot.documents) {
+            val songEntity = SongEntity(
+                audioUrl   = songDoc.getString("audioUrl")   ?: continue,
+                title      = songDoc.getString("title")      ?: "",
+                artist     = songDoc.getString("artist")     ?: "",
+                imageUrl   = songDoc.getString("imageUrl")   ?: "",
+                genre      = songDoc.getString("genre")      ?: "",
+                playlistId = songDoc.getString("playlistId") ?: playlistId,
+                addedAt    = songDoc.getLong("addedAt")      ?: System.currentTimeMillis()
+            )
+            songDao.addSong(songEntity)
         }
     }
 

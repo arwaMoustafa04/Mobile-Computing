@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.test.databinding.ActivityMainBinding
 import com.example.test.ui.fragments.LibraryFragment
@@ -19,6 +20,9 @@ import com.example.test.ui.fragments.PlaylistDetailFragment
 import com.example.test.ui.fragments.LoginFragment
 import com.google.firebase.auth.FirebaseAuth
 import com.example.test.ui.fragments.PlaylistLibraryFragment
+import com.example.test.data.local.database.AppDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -115,6 +119,33 @@ class MainActivity : AppCompatActivity() {
             .commitAllowingStateLoss()
     }
 
+    fun logout() {
+        // 1. Stop music and clear player state
+        if (MusicPlayerManager.isInitialized()) {
+            MusicPlayerManager.reset()
+        }
+        // 2. Hide mini player immediately
+        binding.miniPlayer.visibility = View.GONE
+        binding.bottomNav.visibility  = View.GONE
+        // 3. Clear the entire Fragment back stack so Back doesn't return to app screens
+        supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        // 4. Wipe Room on IO thread — user data must not bleed into the next login
+        val db = AppDatabase.getDatabase(this)
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                db.playlistDao().deleteAllPlaylists()
+                db.songDao().deleteAllSongs()
+                db.userDao().deleteAllUsers()
+            } catch (e: Exception) {
+                // Non-fatal — the next login sync will overwrite stale data anyway
+            }
+        }
+        // 5. Firebase sign-out
+        auth.signOut()
+        // 6. Navigate to login
+        navigateToLogin()
+    }
+
     fun updateBottomNav(selectedTab: String) {
         binding.searchBtn.setImageResource(R.drawable.search)
         binding.libraryBtn.setImageResource(R.drawable.library)
@@ -162,10 +193,11 @@ class MainActivity : AppCompatActivity() {
             else player.seekTo(0, 0)
         }
         binding.btnPrev.setOnClickListener {
-            when {
-                player.currentPosition > 3000     -> player.seekTo(0)
-                player.hasPreviousMediaItem()      -> player.seekToPrevious()
-                else                               -> player.seekTo(player.mediaItemCount - 1, 0)
+            if (player.currentPosition > 3000) player.seekTo(0)
+            else if (player.hasPreviousMediaItem()) player.seekToPrevious()
+            else {
+                val lastIndex = player.mediaItemCount - 1
+                if (lastIndex >= 0) player.seekTo(lastIndex, 0)
             }
         }
         binding.miniPlayer.setOnClickListener {

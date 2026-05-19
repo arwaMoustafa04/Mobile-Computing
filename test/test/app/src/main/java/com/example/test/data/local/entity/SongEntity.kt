@@ -10,6 +10,7 @@ data class SongEntity(
     val title: String,
     val artist: String,
     val imageUrl: String,
+    val genre: String = "",
     val playlistId: String, // We'll use "test_playlist" for now
     val addedAt: Long = System.currentTimeMillis()
 )

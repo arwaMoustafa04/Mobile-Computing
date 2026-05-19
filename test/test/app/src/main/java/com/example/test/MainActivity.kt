@@ -1,7 +1,5 @@
 package com.example.test
 
-// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
-
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
@@ -46,37 +44,41 @@ class MainActivity : AppCompatActivity() {
             updateMiniPlayerUI()
 
             if (savedInstanceState == null) {
-                if (auth.currentUser == null) {
-                    navigateToLogin()
-                } else {
-                    navigateToPlaylistLibrary()
-                }
+                if (auth.currentUser == null) navigateToLogin()
+                else navigateToPlaylistLibrary()
             }
         }
 
-        supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
-            override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
-                super.onFragmentResumed(fm, f)
-                when (f) {
-                    is LibraryFragment        -> updateBottomNav("LIBRARY")
-                    is PlaylistLibraryFragment -> updateBottomNav("PLAYLIST_LIBRARY")
-                    is PlaylistDetailFragment  -> updateBottomNav("PLAYLIST_LIBRARY")
-                    is ProfileFragment         -> updateBottomNav("PROFILE")
+        supportFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
+                    super.onFragmentResumed(fm, f)
+                    when (f) {
+                        is LibraryFragment        -> updateBottomNav("LIBRARY")
+                        is PlaylistLibraryFragment -> updateBottomNav("PLAYLIST_LIBRARY")
+                        is PlaylistDetailFragment  -> updateBottomNav("PLAYLIST_LIBRARY")
+                        is ProfileFragment         -> updateBottomNav("PROFILE")
+                        is AIPlaylistFragment      -> updateBottomNav("AI")
+                    }
+                    if (f is PlayerFragment || f is LoginFragment) {
+                        binding.miniPlayer.visibility = View.GONE
+                    } else {
+                        updateMiniPlayerUI()
+                    }
                 }
-                if (f is PlayerFragment || f is LoginFragment) {
-                    binding.miniPlayer.visibility = View.GONE
-                } else {
-                    updateMiniPlayerUI()
-                }
-            }
-        }, false)
+            }, false
+        )
 
+        // Bottom nav tap handlers
         binding.libraryBtn.setOnClickListener { navigateToPlaylistLibrary() }
         binding.searchBtn.setOnClickListener  { navigateToLibrary() }
         binding.profileBtn.setOnClickListener { navigateToProfile() }
+
+        // ── AI button — the sparkle tab in the bottom bar ──────────────────
+        binding.aiBtn.setOnClickListener { navigateToAIPlaylist() }
     }
 
-    // ── Navigation ────────────────────────────────────────────────────────────
+    // ── Navigation helpers ────────────────────────────────────────────────────
 
     fun navigateToLibrary() {
         binding.bottomNav.visibility = View.VISIBLE
@@ -86,21 +88,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun navigateToLogin() {
-        binding.bottomNav.visibility  = View.GONE
-        binding.miniPlayer.visibility = View.GONE
+        binding.bottomNav.visibility   = View.GONE
+        binding.miniPlayer.visibility  = View.GONE
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, LoginFragment())
             .commitAllowingStateLoss()
     }
 
-    fun onLoginSuccess() {
-        navigateToLibrary()
-    }
+    fun onLoginSuccess() { navigateToLibrary() }
 
     fun navigateToProfile() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, ProfileFragment())
             .addToBackStack(null)
+            .commitAllowingStateLoss()
+    }
+
+    fun navigateToAIPlaylist() {
+        binding.bottomNav.visibility = View.VISIBLE
+        supportFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.fragment_container, AIPlaylistFragment())
             .commitAllowingStateLoss()
     }
 
@@ -111,30 +119,16 @@ class MainActivity : AppCompatActivity() {
             .commitAllowingStateLoss()
     }
 
-    // ── Logout ────────────────────────────────────────────────────────────────
-
-    /**
-     * Full logout sequence:
-     * 1. Stop playback and clear all player state
-     * 2. Hide mini player immediately
-     * 3. Clear the entire Fragment back stack
-     * 4. Wipe Room database (playlists, songs, user) on a background thread
-     * 5. Sign out of Firebase Auth
-     * 6. Navigate to Login
-     */
     fun logout() {
         // 1. Stop music and clear player state
         if (MusicPlayerManager.isInitialized()) {
             MusicPlayerManager.reset()
         }
-
         // 2. Hide mini player immediately
         binding.miniPlayer.visibility = View.GONE
         binding.bottomNav.visibility  = View.GONE
-
         // 3. Clear the entire Fragment back stack so Back doesn't return to app screens
         supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-
         // 4. Wipe Room on IO thread — user data must not bleed into the next login
         val db = AppDatabase.getDatabase(this)
         lifecycleScope.launch(Dispatchers.IO) {
@@ -146,29 +140,32 @@ class MainActivity : AppCompatActivity() {
                 // Non-fatal — the next login sync will overwrite stale data anyway
             }
         }
-
         // 5. Firebase sign-out
         auth.signOut()
-
         // 6. Navigate to login
         navigateToLogin()
     }
-
-    // ── Bottom nav ────────────────────────────────────────────────────────────
 
     fun updateBottomNav(selectedTab: String) {
         binding.searchBtn.setImageResource(R.drawable.search)
         binding.libraryBtn.setImageResource(R.drawable.library)
         binding.profileBtn.setImageResource(R.drawable.profile)
+        // Reset AI button to default tint
+        binding.aiBtn.setColorFilter(
+            resources.getColor(android.R.color.darker_gray, theme)
+        )
 
         when (selectedTab) {
             "LIBRARY"          -> binding.searchBtn.setImageResource(R.drawable.search_clicked)
             "PLAYLIST_LIBRARY" -> binding.libraryBtn.setImageResource(R.drawable.library_clicked)
             "PROFILE"          -> binding.profileBtn.setImageResource(R.drawable.profile_clicked)
+            "AI"               -> binding.aiBtn.setColorFilter(
+                resources.getColor(android.R.color.holo_purple, theme)
+            )
         }
     }
 
-    // ── Player ────────────────────────────────────────────────────────────────
+    // ── Mini player ───────────────────────────────────────────────────────────
 
     private fun setupGlobalPlayer() {
         if (!MusicPlayerManager.isInitialized()) return
@@ -191,12 +188,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnPlayPause.setOnClickListener {
             if (player.isPlaying) player.pause() else player.play()
         }
-
         binding.btnNext.setOnClickListener {
             if (player.hasNextMediaItem()) player.seekToNext()
             else player.seekTo(0, 0)
         }
-
         binding.btnPrev.setOnClickListener {
             if (player.currentPosition > 3000) player.seekTo(0)
             else if (player.hasPreviousMediaItem()) player.seekToPrevious()
@@ -205,7 +200,6 @@ class MainActivity : AppCompatActivity() {
                 if (lastIndex >= 0) player.seekTo(lastIndex, 0)
             }
         }
-
         binding.miniPlayer.setOnClickListener {
             supportFragmentManager.beginTransaction()
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
@@ -217,20 +211,16 @@ class MainActivity : AppCompatActivity() {
 
     fun updateMiniPlayerUI() {
         if (!MusicPlayerManager.isInitialized()) return
-        val currentSong  = MusicPlayerManager.currentSong
-        val isPlayerOpen = supportFragmentManager.findFragmentById(R.id.fragment_container) is PlayerFragment
-        val isLoginOpen  = supportFragmentManager.findFragmentById(R.id.fragment_container) is LoginFragment
+        val currentSong    = MusicPlayerManager.currentSong
+        val isPlayerOpen   = supportFragmentManager.findFragmentById(R.id.fragment_container) is PlayerFragment
+        val isLoginOpen    = supportFragmentManager.findFragmentById(R.id.fragment_container) is LoginFragment
 
         if (currentSong != null && !isPlayerOpen && !isLoginOpen) {
-            binding.miniPlayer.visibility = View.VISIBLE
-            binding.miniSongTitle.text    = currentSong.title
-            binding.miniArtistName.text   = currentSong.artist
-
-            Glide.with(this)
-                .load(currentSong.imageUrl)
-                .placeholder(R.drawable.placeholder_image)
-                .into(binding.miniAlbumArt)
-
+            binding.miniPlayer.visibility  = View.VISIBLE
+            binding.miniSongTitle.text     = currentSong.title
+            binding.miniArtistName.text    = currentSong.artist
+            Glide.with(this).load(currentSong.imageUrl)
+                .placeholder(R.drawable.placeholder_image).into(binding.miniAlbumArt)
             val icon = if (MusicPlayerManager.player.isPlaying) R.drawable.ic_media_pause else R.drawable.ic_media_play
             binding.btnPlayPause.setImageResource(icon)
         } else {
@@ -241,9 +231,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         globalPlayerListener?.let {
-            if (MusicPlayerManager.isInitialized()) {
-                MusicPlayerManager.player.removeListener(it)
-            }
+            if (MusicPlayerManager.isInitialized()) MusicPlayerManager.player.removeListener(it)
         }
         globalPlayerListener = null
     }

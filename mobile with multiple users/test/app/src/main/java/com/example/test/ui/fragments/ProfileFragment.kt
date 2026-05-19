@@ -80,8 +80,9 @@ class ProfileFragment : Fragment() {
 
         binding.btnEditProfile.setOnClickListener { showEditDialog() }
         binding.btnLogout.setOnClickListener {
-            auth.signOut()
-            (activity as? MainActivity)?.navigateToLogin()
+            profileListener?.remove()
+            profileListener = null
+            (activity as? MainActivity)?.logout()
         }
     }
 

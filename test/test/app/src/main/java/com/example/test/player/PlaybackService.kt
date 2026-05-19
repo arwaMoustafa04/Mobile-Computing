@@ -46,13 +46,17 @@ class PlaybackService : MediaSessionService() {
                     // URIs are stripped when MediaItems travel from the UI to the Service.
                     val updatedItems = mediaItems.map { item ->
                         val actualUrl = if (item.mediaId.startsWith("media_queue_")) {
-                            // This logic is safer: it removes ONLY the known prefix and the timestamp
-                            // It looks for the SECOND underscore to find where the URL starts
-                            val firstUnderscore = item.mediaId.indexOf("_") // after 'media'
-                            val secondUnderscore = item.mediaId.indexOf("_", firstUnderscore + 1) // after 'queue'
-                            val thirdUnderscore = item.mediaId.indexOf("_", secondUnderscore + 1) // after timestamp
+                            // Extract everything after the THIRD underscore
+                            // media_queue_timestamp_URL
+                            val firstUnderscore = item.mediaId.indexOf("_")
+                            val secondUnderscore = item.mediaId.indexOf("_", firstUnderscore + 1)
+                            val thirdUnderscore = item.mediaId.indexOf("_", secondUnderscore + 1)
 
-                            item.mediaId.substring(thirdUnderscore + 1)
+                            if (thirdUnderscore != -1) {
+                                item.mediaId.substring(thirdUnderscore + 1)
+                            } else {
+                                item.mediaId
+                            }
                         } else {
                             item.mediaId
                         }

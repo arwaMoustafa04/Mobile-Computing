@@ -1,7 +1,5 @@
 package com.example.test.player
 
-// AI-assisted: Firebase Firestore sync, Cloudinary image upload, real-time listeners
-
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
@@ -24,7 +22,7 @@ object MusicPlayerManager {
     private const val QUEUE_PREFIX = "media_queue_"
     private var _player: Player? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
-
+    
     val player: Player
         get() = _player ?: throw IllegalStateException("Player not initialized.")
 
@@ -39,10 +37,16 @@ object MusicPlayerManager {
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val p = _player ?: return
+
+            // Check the song we are LEAVING
             val idToRemove = lastMediaId
+
+            // Set the new "last" to the song that just started
             lastMediaId = mediaItem?.mediaId
 
             if (idToRemove != null && idToRemove.startsWith(QUEUE_PREFIX)) {
+                // We only remove it if it's NOT the one currently playing
                 if (idToRemove != mediaItem?.mediaId) {
                     removeMediaItemById(idToRemove)
                 }
@@ -59,6 +63,7 @@ object MusicPlayerManager {
         }
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            // Keep our local list in sync whenever the player's timeline changes
             syncWithPlayerTimeline()
             onStateChanged?.invoke()
         }
@@ -90,10 +95,6 @@ object MusicPlayerManager {
 
     fun isInitialized(): Boolean = _player != null
 
-    /**
-     * Stops playback and clears all player state.
-     * Call this on logout so the next user starts with a clean slate.
-     */
     fun reset() {
         val p = _player ?: return
         try {
@@ -149,6 +150,7 @@ object MusicPlayerManager {
             .setTitle(song.title)
             .setArtist(song.artist)
             .setArtworkUri(Uri.parse(song.imageUrl))
+            .setGenre(song.genre)
             .build()
 
         return MediaItem.Builder()
@@ -163,7 +165,7 @@ object MusicPlayerManager {
         val p = player
         activePlaylistId = playlistId
 
-        // Save existing queue items so they survive the playlist switch
+        // 1. SAVE the existing queue items from the current timeline
         val existingQueueItems = mutableListOf<MediaItem>()
         for (i in 0 until p.mediaItemCount) {
             val item = p.getMediaItemAt(i)
@@ -172,22 +174,25 @@ object MusicPlayerManager {
             }
         }
 
+        // 2. Prepare the new playlist items
         val playlistItems = songs.map { createMediaItem(it, isQueued = false) }
 
+        // 3. Replace the timeline with the new playlist
+        p.setMediaItems(playlistItems, startIndex, 0L)
+
+        // 4. RE-INSERT the queue items at the end of the new timeline
         if (existingQueueItems.isNotEmpty()) {
             // Build the timeline so queue songs play immediately after the selected song:
             // [selected song] [queue songs...] [remaining playlist songs...]
             val selectedItem  = playlistItems[startIndex]
             val beforeSelected = playlistItems.subList(0, startIndex)          // songs before tapped song
             val afterSelected  = playlistItems.subList(startIndex + 1, playlistItems.size) // songs after
-
             // Full order: songs before | selected | queue | songs after
             val reordered = mutableListOf<MediaItem>()
             reordered.addAll(beforeSelected)
             reordered.add(selectedItem)
             reordered.addAll(existingQueueItems)   // queue plays right after selected song
             reordered.addAll(afterSelected)        // rest of playlist follows queue
-
             // Start playback at the selected song's position in the reordered list
             p.setMediaItems(reordered, startIndex, 0L)
         } else {
@@ -197,13 +202,19 @@ object MusicPlayerManager {
 
         p.prepare()
         p.play()
+
         syncWithPlayerTimeline()
     }
 
+    /**
+     * Appends a song to the end of the current player timeline.
+     * Useful when a song is added to the playlist that is currently playing.
+     */
     fun addSongToEnd(song: Song) {
         if (!isInitialized()) return
         val p = player
-
+        
+        // Ensure we don't add the same song twice if it's already the last one
         if (p.mediaItemCount > 0) {
             val lastItem = p.getMediaItemAt(p.mediaItemCount - 1)
             if (lastItem.mediaId == song.audioUrl) return
@@ -211,11 +222,12 @@ object MusicPlayerManager {
 
         val mediaItem = createMediaItem(song, isQueued = false)
         p.addMediaItem(mediaItem)
-
+        
+        // If the player was idle or ended, prepare it again to pick up the new item
         if (p.playbackState == Player.STATE_IDLE || p.playbackState == Player.STATE_ENDED) {
             p.prepare()
         }
-
+        
         syncWithPlayerTimeline()
     }
 
@@ -251,21 +263,24 @@ object MusicPlayerManager {
             val item = p.getMediaItemAt(i)
             val metadata = item.mediaMetadata
 
+            // CLEAN THE URL HERE
             val rawId = item.mediaId
             val cleanUrl = if (rawId.startsWith(QUEUE_PREFIX)) {
-                val first  = rawId.indexOf("_")
+                // Find the 3rd underscore (media_queue_timestamp_URL)
+                val first = rawId.indexOf("_")
                 val second = rawId.indexOf("_", first + 1)
-                val third  = rawId.indexOf("_", second + 1)
+                val third = rawId.indexOf("_", second + 1)
                 rawId.substring(third + 1)
             } else {
                 rawId
             }
 
             newList.add(Song(
-                title    = metadata.title?.toString()      ?: "Unknown",
-                artist   = metadata.artist?.toString()     ?: "Unknown",
+                title = metadata.title?.toString() ?: "Unknown",
+                artist = metadata.artist?.toString() ?: "Unknown",
                 imageUrl = metadata.artworkUri?.toString() ?: "",
-                audioUrl = cleanUrl
+                audioUrl = cleanUrl,
+                genre = metadata.genre?.toString() ?: ""
             ))
         }
         activePlaybackList = newList
@@ -273,7 +288,7 @@ object MusicPlayerManager {
         val currentIndex = p.currentMediaItemIndex
         if (currentIndex in 0 until activePlaybackList.size) {
             currentSongIndex = currentIndex
-            currentSong      = activePlaybackList[currentIndex]
+            currentSong = activePlaybackList[currentIndex]
         }
     }
 }
