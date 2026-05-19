@@ -74,7 +74,12 @@ class RegisterFragment : Fragment() {
         val password = binding.etPassword.text.toString().trim()
 
         if (username.isEmpty() || email.isEmpty() || password.isEmpty()) {
-            Toast.makeText(requireContext(), "Please fill all fields", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.error_empty_fields), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            Toast.makeText(requireContext(), getString(R.string.error_invalid_email), Toast.LENGTH_SHORT).show()
             return
         }
 

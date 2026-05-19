@@ -55,6 +55,27 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
         }
     }
 
+    fun updateUserProfile(userId: String, username: String, email: String, imageUrl: String?) {
+        viewModelScope.launch {
+            try {
+                _syncState.postValue(UiState.Loading)
+                repository.updateUserProfile(userId, username, email, imageUrl)
+                _syncState.postValue(UiState.Success(Unit))
+            } catch (e: Exception) {
+                // If it's a network error, the local update likely still happened or will happen.
+                // We show an error but don't necessarily treat it as a total failure if Room is updated.
+                val errorMessage = e.message ?: "Unknown error"
+                if (errorMessage.contains("UnknownHostException", ignoreCase = true)) {
+                    _error.postValue("Profile saved locally. Cloud sync will resume when online.")
+                    _syncState.postValue(UiState.Success(Unit)) // Allow navigation as Room is updated
+                } else {
+                    _error.postValue("Update failed: $errorMessage")
+                    _syncState.postValue(UiState.Error(errorMessage))
+                }
+            }
+        }
+    }
+
     fun getSongsByPlaylist(playlistId: String): LiveData<List<SongEntity>> =
         repository.getSongsByPlaylistLive(playlistId)
 

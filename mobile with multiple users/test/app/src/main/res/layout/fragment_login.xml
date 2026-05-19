@@ -44,6 +44,17 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="@dimen/spacing_xl" />
 
+    <TextView
+        android:id="@+id/tvForgotPassword"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/action_forgot_password"
+        android:textColor="@color/brand_green"
+        android:textSize="@dimen/text_sm"
+        app:layout_constraintTop_toBottomOf="@id/etPassword"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="@dimen/spacing_md" />
+
     <Button
         android:id="@+id/btnLogin"
         android:layout_width="0dp"
@@ -51,10 +62,10 @@
         android:text="@string/label_login"
         android:backgroundTint="@color/brand_green"
         android:textColor="@color/black"
-        app:layout_constraintTop_toBottomOf="@id/etPassword"
+        app:layout_constraintTop_toBottomOf="@id/tvForgotPassword"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="@dimen/spacing_huge" />
+        android:layout_marginTop="@dimen/spacing_lg" />
 
     <!-- Loading spinner shown during post-login sync -->
     <ProgressBar

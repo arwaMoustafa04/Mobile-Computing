@@ -11,6 +11,7 @@ import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.local.entity.UserEntity
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,26 @@ class MusicRepository(
 
     suspend fun saveUser(user: UserEntity) = withContext(Dispatchers.IO) {
         userDao.insertUser(user)
+    }
+
+    suspend fun getUserSync(userId: String): UserEntity? = withContext(Dispatchers.IO) {
+        userDao.getUserByIdSync(userId)
+    }
+
+    suspend fun updateUserProfile(userId: String, username: String, email: String, imageUrl: String?) = withContext(Dispatchers.IO) {
+        val updates = mutableMapOf<String, Any>(
+            "username" to username,
+            "email" to email
+        )
+        imageUrl?.let { updates["profileImageUrl"] = it }
+
+        // Update Firestore: Use set with merge to create the document if it doesn't exist
+        db.collection("users").document(userId).set(updates, SetOptions.merge()).await()
+
+        // Update Room
+        val existingUser = userDao.getUserByIdSync(userId)
+        val finalImageUrl = imageUrl ?: existingUser?.profileImageUrl ?: ""
+        userDao.insertUser(UserEntity(userId, username, email, finalImageUrl))
     }
 
     // ---------------------------------------------------------------------------
