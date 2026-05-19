@@ -133,6 +133,7 @@ object MusicPlayerManager {
             .setTitle(song.title)
             .setArtist(song.artist)
             .setArtworkUri(Uri.parse(song.imageUrl))
+            .setGenre(song.genre)
             .build()
 
         return MediaItem.Builder()
@@ -237,7 +238,7 @@ object MusicPlayerManager {
                 val first = rawId.indexOf("_")
                 val second = rawId.indexOf("_", first + 1)
                 val third = rawId.indexOf("_", second + 1)
-                rawId.substring(third + 1)
+                if (third != -1) rawId.substring(third + 1) else rawId
             } else {
                 rawId
             }
@@ -246,7 +247,8 @@ object MusicPlayerManager {
                 title = metadata.title?.toString() ?: "Unknown",
                 artist = metadata.artist?.toString() ?: "Unknown",
                 imageUrl = metadata.artworkUri?.toString() ?: "",
-                audioUrl = cleanUrl
+                audioUrl = cleanUrl,
+                genre = metadata.genre?.toString() ?: ""
             ))
         }
         activePlaybackList = newList

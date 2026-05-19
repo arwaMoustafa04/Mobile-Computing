@@ -39,6 +39,8 @@
     <string name="label_add_cover">+ Add cover image</string>
     <string name="label_create">Create</string>
     <string name="label_cancel">Cancel</string>
+    <string name="label_ai_generate">AI Generate</string>
+    <string name="label_ai_icon">✨</string>
 
     <!-- Player -->
     <string name="label_song_title_placeholder">Song Title</string>

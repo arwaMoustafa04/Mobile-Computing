@@ -261,7 +261,15 @@ class LibraryFragment : Fragment() {
             return
         }
         viewModel.addSongToPlaylist(
-            SongEntity(song.audioUrl, song.title, song.artist, song.imageUrl, playlistId, System.currentTimeMillis()),
+            SongEntity(
+                audioUrl = song.audioUrl,
+                title = song.title,
+                artist = song.artist,
+                imageUrl = song.imageUrl,
+                genre = song.genre,
+                playlistId = playlistId,
+                addedAt = System.currentTimeMillis()
+            ),
             userId
         )
         if (MusicPlayerManager.isInitialized() && MusicPlayerManager.activePlaylistId == playlistId) {

@@ -9,7 +9,7 @@ import com.bumptech.glide.Glide
 import com.example.test.data.local.entity.PlaylistEntity
 import com.example.test.databinding.ItemPlaylistBinding
 
-// AI-assisted: DiffUtil implementation for efficient RecyclerView updates
+
 class PlaylistAdapter(
     private var playlists: List<PlaylistEntity> = emptyList(),
     private val onPlaylistClick: (PlaylistEntity) -> Unit,

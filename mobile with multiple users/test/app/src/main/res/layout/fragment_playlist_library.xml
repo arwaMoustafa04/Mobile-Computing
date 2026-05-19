@@ -26,14 +26,20 @@
             android:textStyle="bold" />
 
         <LinearLayout
-            android:id="@+id/btnNewPlaylist"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="@dimen/spacing_xl"
-            android:paddingEnd="@dimen/spacing_xl"
-            android:background="@drawable/bg_new_playlist_btn">
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:id="@+id/btnNewPlaylist"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/spacing_xl"
+                android:paddingEnd="@dimen/spacing_xl"
+                android:background="@drawable/bg_new_playlist_btn">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -51,6 +57,7 @@
                 android:textColor="@color/black"
                 android:textSize="@dimen/text_md"
                 android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 

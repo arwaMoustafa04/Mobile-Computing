@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var auth: FirebaseAuth
-    private var globalPlayerListener: androidx.media3.common.Player.Listener? = null
+    private var globalPlayerListener: Player.Listener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         auth = FirebaseAuth.getInstance()
-
         binding.miniPlayer.visibility = View.GONE
 
         MusicPlayerManager.initialize(this) {
@@ -41,48 +40,41 @@ class MainActivity : AppCompatActivity() {
             updateMiniPlayerUI()
 
             if (savedInstanceState == null) {
-                if (auth.currentUser == null) {
-                    navigateToLogin()
-                } else {
-                    navigateToPlaylistLibrary()
-                }
+                if (auth.currentUser == null) navigateToLogin()
+                else navigateToPlaylistLibrary()
             }
         }
 
-        supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
-            override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
-                super.onFragmentResumed(fm, f)
-
-                // Update bottom navigation based on the current fragment
-                when (f) {
-                    is LibraryFragment -> updateBottomNav("LIBRARY")
-                    is PlaylistLibraryFragment -> updateBottomNav("PLAYLIST_LIBRARY")
-                    is PlaylistDetailFragment -> updateBottomNav("PLAYLIST_LIBRARY")
-                    is ProfileFragment -> updateBottomNav("PROFILE")
+        supportFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
+                    super.onFragmentResumed(fm, f)
+                    when (f) {
+                        is LibraryFragment        -> updateBottomNav("LIBRARY")
+                        is PlaylistLibraryFragment -> updateBottomNav("PLAYLIST_LIBRARY")
+                        is PlaylistDetailFragment  -> updateBottomNav("PLAYLIST_LIBRARY")
+                        is ProfileFragment         -> updateBottomNav("PROFILE")
+                        is AIPlaylistFragment      -> updateBottomNav("AI")
+                    }
+                    if (f is PlayerFragment || f is LoginFragment) {
+                        binding.miniPlayer.visibility = View.GONE
+                    } else {
+                        updateMiniPlayerUI()
+                    }
                 }
+            }, false
+        )
 
-                // Manage mini player visibility
-                if (f is PlayerFragment || f is LoginFragment) {
-                    binding.miniPlayer.visibility = View.GONE
-                } else {
-                    updateMiniPlayerUI()
-                }
-            }
-        }, false)
+        // Bottom nav tap handlers
+        binding.libraryBtn.setOnClickListener { navigateToPlaylistLibrary() }
+        binding.searchBtn.setOnClickListener  { navigateToLibrary() }
+        binding.profileBtn.setOnClickListener { navigateToProfile() }
 
-        // Set up navigation clicks for the bottom bar
-        binding.libraryBtn.setOnClickListener {
-            navigateToPlaylistLibrary()
-        }
-
-        binding.searchBtn.setOnClickListener {
-            navigateToLibrary()
-        }
-
-        binding.profileBtn.setOnClickListener {
-            navigateToProfile()
-        }
+        // ── AI button — the sparkle tab in the bottom bar ──────────────────
+        binding.aiBtn.setOnClickListener { navigateToAIPlaylist() }
     }
+
+    // ── Navigation helpers ────────────────────────────────────────────────────
 
     fun navigateToLibrary() {
         binding.bottomNav.visibility = View.VISIBLE
@@ -92,26 +84,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun navigateToLogin() {
-        binding.bottomNav.visibility = View.GONE
-        binding.miniPlayer.visibility = View.GONE
+        binding.bottomNav.visibility   = View.GONE
+        binding.miniPlayer.visibility  = View.GONE
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, LoginFragment())
             .commitAllowingStateLoss()
     }
 
-    fun onLoginSuccess() {
-        navigateToLibrary()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        globalPlayerListener?.let {
-            if (MusicPlayerManager.isInitialized()) {
-                MusicPlayerManager.player.removeListener(it)
-            }
-        }
-        globalPlayerListener = null
-    }
+    fun onLoginSuccess() { navigateToLibrary() }
 
     fun navigateToProfile() {
         supportFragmentManager.beginTransaction()
@@ -120,41 +100,52 @@ class MainActivity : AppCompatActivity() {
             .commitAllowingStateLoss()
     }
 
+    fun navigateToAIPlaylist() {
+        binding.bottomNav.visibility = View.VISIBLE
+        supportFragmentManager.beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .replace(R.id.fragment_container, AIPlaylistFragment())
+            .commitAllowingStateLoss()
+    }
+
     private fun navigateToPlaylistLibrary() {
-        binding.bottomNav.visibility = android.view.View.VISIBLE
+        binding.bottomNav.visibility = View.VISIBLE
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, PlaylistLibraryFragment())
             .commitAllowingStateLoss()
     }
 
-
-
     fun updateBottomNav(selectedTab: String) {
-        // 1. Reset all icons to their default state (gray)
         binding.searchBtn.setImageResource(R.drawable.search)
         binding.libraryBtn.setImageResource(R.drawable.library)
         binding.profileBtn.setImageResource(R.drawable.profile)
+        // Reset AI button to default tint
+        binding.aiBtn.setColorFilter(
+            resources.getColor(android.R.color.darker_gray, theme)
+        )
 
-        // 2. Highlight only the active tab if necessary
         when (selectedTab) {
-            "LIBRARY" -> binding.searchBtn.setImageResource(R.drawable.search_clicked)
+            "LIBRARY"          -> binding.searchBtn.setImageResource(R.drawable.search_clicked)
             "PLAYLIST_LIBRARY" -> binding.libraryBtn.setImageResource(R.drawable.library_clicked)
-            "PROFILE" -> binding.profileBtn.setImageResource(R.drawable.profile_clicked)
+            "PROFILE"          -> binding.profileBtn.setImageResource(R.drawable.profile_clicked)
+            "AI"               -> binding.aiBtn.setColorFilter(
+                resources.getColor(android.R.color.holo_purple, theme)
+            )
         }
     }
+
+    // ── Mini player ───────────────────────────────────────────────────────────
 
     private fun setupGlobalPlayer() {
         if (!MusicPlayerManager.isInitialized()) return
         val player = MusicPlayerManager.player
 
-        // Remove any previous listener from an earlier Activity instance
         globalPlayerListener?.let { player.removeListener(it) }
 
         val listener = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 updateMiniPlayerUI()
             }
-
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 val icon = if (isPlaying) R.drawable.ic_media_pause else R.drawable.ic_media_play
                 binding.btnPlayPause.setImageResource(icon)
@@ -166,30 +157,17 @@ class MainActivity : AppCompatActivity() {
         binding.btnPlayPause.setOnClickListener {
             if (player.isPlaying) player.pause() else player.play()
         }
-
         binding.btnNext.setOnClickListener {
-            if (player.hasNextMediaItem()) {
-                player.seekToNext()
-            } else {
-                // Wrap around to the first song
-                player.seekTo(0, 0)
-            }
+            if (player.hasNextMediaItem()) player.seekToNext()
+            else player.seekTo(0, 0)
         }
-
         binding.btnPrev.setOnClickListener {
-            if (player.currentPosition > 3000) {
-                player.seekTo(0)
-            } else if (player.hasPreviousMediaItem()) {
-                player.seekToPrevious()
-            } else {
-                // Wrap around to the last song
-                val lastIndex = player.mediaItemCount - 1
-                if (lastIndex >= 0) {
-                    player.seekTo(lastIndex, 0)
-                }
+            when {
+                player.currentPosition > 3000     -> player.seekTo(0)
+                player.hasPreviousMediaItem()      -> player.seekToPrevious()
+                else                               -> player.seekTo(player.mediaItemCount - 1, 0)
             }
         }
-
         binding.miniPlayer.setOnClickListener {
             supportFragmentManager.beginTransaction()
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
@@ -201,24 +179,28 @@ class MainActivity : AppCompatActivity() {
 
     fun updateMiniPlayerUI() {
         if (!MusicPlayerManager.isInitialized()) return
-        val currentSong = MusicPlayerManager.currentSong
-        val isPlayerOpen = supportFragmentManager.findFragmentById(R.id.fragment_container) is PlayerFragment
-        val isLoginOpen = supportFragmentManager.findFragmentById(R.id.fragment_container) is LoginFragment
+        val currentSong    = MusicPlayerManager.currentSong
+        val isPlayerOpen   = supportFragmentManager.findFragmentById(R.id.fragment_container) is PlayerFragment
+        val isLoginOpen    = supportFragmentManager.findFragmentById(R.id.fragment_container) is LoginFragment
 
         if (currentSong != null && !isPlayerOpen && !isLoginOpen) {
-            binding.miniPlayer.visibility = View.VISIBLE
-            binding.miniSongTitle.text = currentSong.title
-            binding.miniArtistName.text = currentSong.artist
-
-            Glide.with(this)
-                .load(currentSong.imageUrl)
-                .placeholder(R.drawable.placeholder_image)
-                .into(binding.miniAlbumArt)
-
+            binding.miniPlayer.visibility  = View.VISIBLE
+            binding.miniSongTitle.text     = currentSong.title
+            binding.miniArtistName.text    = currentSong.artist
+            Glide.with(this).load(currentSong.imageUrl)
+                .placeholder(R.drawable.placeholder_image).into(binding.miniAlbumArt)
             val icon = if (MusicPlayerManager.player.isPlaying) R.drawable.ic_media_pause else R.drawable.ic_media_play
             binding.btnPlayPause.setImageResource(icon)
         } else {
             binding.miniPlayer.visibility = View.GONE
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        globalPlayerListener?.let {
+            if (MusicPlayerManager.isInitialized()) MusicPlayerManager.player.removeListener(it)
+        }
+        globalPlayerListener = null
     }
 }
