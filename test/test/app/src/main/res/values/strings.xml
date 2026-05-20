@@ -9,6 +9,7 @@
     <string name="hint_email">Email</string>
     <string name="hint_password">Password</string>
     <string name="hint_username">Username</string>
+    <string name="action_forgot_password">Forgot Password?</string>
     <string name="hint_playlist_name">Playlist name</string>
     <string name="action_no_account">Don\'t have an account? Register</string>
     <string name="action_have_account">Already have an account? Login</string>
@@ -22,6 +23,21 @@
     <string name="label_username_default">Music Enthusiast</string>
     <string name="label_change_picture">Change Profile Picture</string>
     <string name="label_save_changes">Save Changes</string>
+    <string name="label_account_settings">Account Settings</string>
+    <string name="label_reset_password">Reset Password</string>
+    <string name="label_change_email">Change Email</string>
+    <string name="hint_new_password">New Password</string>
+    <string name="msg_password_reset_sent">Password reset email sent.</string>
+    <string name="msg_profile_updated">Profile updated successfully.</string>
+    <string name="error_empty_fields">Fields cannot be empty.</string>
+    <string name="error_invalid_email">Please enter a valid email address.</string>
+    <string name="error_reauthenticate">For security, please enter your password to change your email.</string>
+    <string name="label_reauthenticate_title">Re-authentication Required</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="error_password_empty">Password cannot be empty</string>
+    <string name="error_reauth_failed">Re-authentication failed: %1$s</string>
+    <string name="error_auth_update_failed">Auth update failed: %1$s</string>
+    <string name="msg_email_verification_hint">Note: Changing your email will send a verification link to the new address. The change takes effect after verification.</string>
 
     <!-- Playlist -->
     <string name="label_your_playlists">Your Playlists</string>

@@ -7,6 +7,7 @@ import com.example.test.data.local.dao.PlaylistDao
 import com.example.test.data.local.dao.SongDao
 import com.example.test.data.local.dao.UserDao
 import com.example.test.data.local.entity.PlaylistEntity
+import com.google.firebase.firestore.SetOptions
 import com.example.test.data.local.entity.SongEntity
 import com.example.test.data.local.entity.UserEntity
 import com.google.firebase.firestore.FirebaseFirestore
@@ -28,7 +29,8 @@ class MusicRepository(
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val db = FirebaseFirestore.getInstance()
 
-    // ---------------------------------------------------------------------------
+
+
     // User
     // ---------------------------------------------------------------------------
 
@@ -38,7 +40,26 @@ class MusicRepository(
         userDao.insertUser(user)
     }
 
-    // ---------------------------------------------------------------------------
+suspend fun getUserSync(userId: String): UserEntity? = withContext(Dispatchers.IO) {
+    userDao.getUserByIdSync(userId)
+}
+suspend fun updateUserProfile(userId: String, username: String, email: String, imageUrl: String?) = withContext(Dispatchers.IO) {
+    val updates = mutableMapOf<String, Any>(
+        "username" to username,
+        "email" to email
+    )
+    imageUrl?.let { updates["profileImageUrl"] = it }
+    // Update Firestore: Use set with merge to create the document if it doesn't exist
+    db.collection("users").document(userId).set(updates, SetOptions.merge()).await()
+    // Update Room
+    val existingUser = userDao.getUserByIdSync(userId)
+    val finalImageUrl = imageUrl ?: existingUser?.profileImageUrl ?: ""
+    userDao.insertUser(UserEntity(userId, username, email, finalImageUrl))
+}
+
+
+
+
     // Songs
     // ---------------------------------------------------------------------------
 
@@ -72,11 +93,6 @@ class MusicRepository(
             .collection("songs").document(song.audioUrl.hashCode().toString())
             .delete().await()
     }
-
-    // ---------------------------------------------------------------------------
-    // Playlists — local Room operations (Firestore writes done in fragments via
-    // real-time listeners so the repo just handles the Room cache here)
-    // ---------------------------------------------------------------------------
 
     suspend fun savePlaylist(playlist: PlaylistEntity) = withContext(Dispatchers.IO) {
         playlistDao.insertPlaylist(playlist)
@@ -121,8 +137,10 @@ class MusicRepository(
             .update(mapOf("name" to newName, "imageUrl" to newImage)).await()
     }
 
-    // ---------------------------------------------------------------------------
-    // Cloud sync — called once after login to seed Room from Firestore
+
+
+
+    // Cloud sync, called once after login to seed Room from Firestore
     // ---------------------------------------------------------------------------
 
     suspend fun syncPlaylistsFromFirestore(userId: String) = withContext(Dispatchers.IO) {
@@ -172,16 +190,6 @@ class MusicRepository(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Real-time playlist listener — call this after login and keep the
-    // returned ListenerRegistration to remove it on logout/destroy
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Attaches a real-time Firestore listener that keeps Room in sync whenever
-     * any playlist is created, updated, or deleted on any device.
-     * Returns the [ListenerRegistration] — caller must call .remove() on it.
-     */
     fun listenToPlaylists(userId: String): ListenerRegistration {
         return db.collection("users").document(userId)
             .collection("playlists")

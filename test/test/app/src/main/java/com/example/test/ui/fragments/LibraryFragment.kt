@@ -88,16 +88,13 @@ class LibraryFragment : Fragment() {
         fetchSongs()
     }
 
-    // ---------------------------------------------------------------------------
-    // Data loading — offline-first strategy
-    // ---------------------------------------------------------------------------
 
     private fun fetchSongs() {
         if (NetworkUtils.isOnline(requireContext())) {
             fetchSongsFromFirestore()
         } else {
-            // Offline — nothing to show from local DB for the global song library
-            // (songs live in Firestore, not Room), so show a friendly message
+            // Offline, nothing to show from local DB for the global song library
+            //(songs live in Firestore, not Room), so show a message
             showOfflineBanner()
         }
     }
@@ -122,7 +119,7 @@ class LibraryFragment : Fragment() {
             .addOnFailureListener { e ->
                 if (!isAdded) return@addOnFailureListener
                 showLoading(false)
-                // Network call failed — show cached data if any, else error
+                // Network call failed, show cached data if any, else error
                 if (fullSongList.isNotEmpty()) {
                     Toast.makeText(
                         requireContext(),

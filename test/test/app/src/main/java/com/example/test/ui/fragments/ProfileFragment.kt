@@ -45,19 +45,10 @@ class ProfileFragment : Fragment() {
     private var currentProfileImageUrl = ""
     private var currentEmail           = ""
 
-    // Real-time Firestore listener — keeps profile in sync across devices
+    // Real-time Firestore listener, keeps profile in sync across devices
     private var profileListener: ListenerRegistration? = null
 
-    // Dialog state
-    private var openDialog: android.app.AlertDialog? = null
-    private var dialogImageView: ImageView? = null
-    private var dialogSaveButton: Button? = null
-    private var pendingImageUrl: String?  = null
 
-    private val pickMedia =
-        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            if (uri != null) uploadProfileImage(uri)
-        }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -78,7 +69,7 @@ class ProfileFragment : Fragment() {
 
         auth.currentUser?.uid?.let { userId -> listenToProfile(userId) }
 
-        binding.btnEditProfile.setOnClickListener { showEditDialog() }
+        binding.btnEditProfile.setOnClickListener { navigateToAccountSettings() }
         binding.btnLogout.setOnClickListener {
             profileListener?.remove()
             profileListener = null
@@ -86,11 +77,11 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    /**
-     * Attaches a real-time Firestore listener on the user document.
-     * Any change (from this device OR another) is pushed here instantly
-     * and reflected in the UI without requiring a logout/login.
-     */
+
+     // Attaches a real-time Firestore listener on the user document.
+     // Any change (from this device or another) is pushed here instantly
+     // and reflected in the UI without requiring a logout/login.
+
     private fun listenToProfile(userId: String) {
         profileListener = db.collection("users").document(userId)
             .addSnapshotListener { snapshot, error ->
@@ -114,6 +105,13 @@ class ProfileFragment : Fragment() {
             }
     }
 
+    private fun navigateToAccountSettings() {
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, AccountSettingsFragment())
+            .addToBackStack(null)
+            .commit()
+    }
+
     private fun updateUI(skipImageCache: Boolean = false) {
         binding.tvUsername.text = currentUsername
 
@@ -130,70 +128,6 @@ class ProfileFragment : Fragment() {
         }
 
         glideRequest.into(binding.profilePicture)
-    }
-
-    private fun showEditDialog() {
-        pendingImageUrl = null
-
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_edit_profile, null)
-        val nameInput  = dialogView.findViewById<EditText>(R.id.etUsername)
-        val ivPreview  = dialogView.findViewById<ImageView>(R.id.ivProfilePreview)
-        val btnChange  = dialogView.findViewById<Button>(R.id.btnUploadImage)
-        val btnSave    = dialogView.findViewById<Button>(R.id.btnSave)
-
-        nameInput.setText(currentUsername)
-        Glide.with(this).load(currentProfileImageUrl)
-            .placeholder(R.drawable.profile).circleCrop().into(ivPreview)
-
-        dialogImageView  = ivPreview
-        dialogSaveButton = btnSave
-
-        val dialog = android.app.AlertDialog.Builder(requireContext())
-            .setView(dialogView).create()
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        openDialog = dialog
-
-        btnChange.setOnClickListener {
-            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }
-
-        btnSave.setOnClickListener {
-            val newName = nameInput.text.toString().trim()
-            if (newName.isNotEmpty()) {
-                updateProfile(newName, pendingImageUrl ?: currentProfileImageUrl)
-                dialog.dismiss()
-            }
-        }
-
-        dialog.setOnDismissListener {
-            openDialog       = null
-            dialogImageView  = null
-            dialogSaveButton = null
-        }
-        dialog.show()
-    }
-
-    private fun uploadProfileImage(uri: Uri) {
-        dialogSaveButton?.isEnabled = false
-        Toast.makeText(requireContext(), "Uploading picture…", Toast.LENGTH_SHORT).show()
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val url = CloudinaryUploader.upload(requireContext(), uri)
-                pendingImageUrl = url
-                dialogImageView?.let { iv ->
-                    Glide.with(this@ProfileFragment).load(url)
-                        .diskCacheStrategy(DiskCacheStrategy.NONE)
-                        .skipMemoryCache(true)
-                        .placeholder(R.drawable.profile).circleCrop().into(iv)
-                }
-                Toast.makeText(requireContext(), "Picture ready — tap Save", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Upload failed: ${e.message}", Toast.LENGTH_LONG).show()
-            } finally {
-                dialogSaveButton?.isEnabled = true
-            }
-        }
     }
 
     private fun updateProfile(username: String, imageUrl: String) {

@@ -47,7 +47,7 @@ class LoginFragment : Fragment() {
         val factory    = MusicViewModelFactory(repository)
         viewModel      = ViewModelProvider(this, factory).get(MusicViewModel::class.java)
 
-        // Navigate only after sync completes (or fails — Room cache will be used)
+        // Navigate only after sync completes (or fails, Room cache will be used)
         viewModel.syncComplete.observe(viewLifecycleOwner) { done ->
             if (done == true) {
                 binding.progressBar.visibility = View.GONE
@@ -121,6 +121,21 @@ class LoginFragment : Fragment() {
                 .replace(R.id.fragment_container, RegisterFragment())
                 .addToBackStack(null).commit()
         }
+
+        binding.tvForgotPassword.setOnClickListener {
+            val email = binding.etEmail.text.toString().trim()
+            if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                Toast.makeText(requireContext(), "Please enter a valid email address first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            auth.sendPasswordResetEmail(email)
+                .addOnSuccessListener {
+                    Toast.makeText(requireContext(), getString(R.string.msg_password_reset_sent), Toast.LENGTH_LONG).show()
+                }
+                .addOnFailureListener { e ->
+                    Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+        }
     }
 
     private fun loginWithEmail(email: String, password: String) {
@@ -155,7 +170,7 @@ class LoginFragment : Fragment() {
                 viewModel.syncPlaylistsFromCloud(userId)
             }
             .addOnFailureListener {
-                // Profile fetch failed — still sync playlists from Firestore
+                // Profile fetch failed, still sync playlists from Firestore
                 viewModel.syncPlaylistsFromCloud(userId)
             }
     }

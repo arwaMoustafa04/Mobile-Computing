@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
         binding.searchBtn.setOnClickListener  { navigateToLibrary() }
         binding.profileBtn.setOnClickListener { navigateToProfile() }
 
-        // ── AI button — the sparkle tab in the bottom bar ──────────────────
+        // ── AI button, the sparkle tab in the bottom bar
         binding.aiBtn.setOnClickListener { navigateToAIPlaylist() }
     }
 
@@ -129,7 +129,7 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNav.visibility  = View.GONE
         // 3. Clear the entire Fragment back stack so Back doesn't return to app screens
         supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-        // 4. Wipe Room on IO thread — user data must not bleed into the next login
+        // 4. Wipe Room on IO thread, user data must not bleed into the next login
         val db = AppDatabase.getDatabase(this)
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -137,7 +137,6 @@ class MainActivity : AppCompatActivity() {
                 db.songDao().deleteAllSongs()
                 db.userDao().deleteAllUsers()
             } catch (e: Exception) {
-                // Non-fatal — the next login sync will overwrite stale data anyway
             }
         }
         // 5. Firebase sign-out

@@ -23,7 +23,7 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
     private val _songs = MutableLiveData<List<SongEntity>>()
     val songs: LiveData<List<SongEntity>> = _songs
 
-    // General-purpose error message (one-shot toast/snackbar events)
+    // General-purpose error message
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
 
@@ -51,6 +51,27 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
                 repository.saveUser(user)
             } catch (e: Exception) {
                 _error.postValue("Failed to save user: ${e.message}")
+            }
+        }
+    }
+
+    fun updateUserProfile(userId: String, username: String, email: String, imageUrl: String?) {
+        viewModelScope.launch {
+            try {
+                _syncState.postValue(UiState.Loading)
+                repository.updateUserProfile(userId, username, email, imageUrl)
+                _syncState.postValue(UiState.Success(Unit))
+            } catch (e: Exception) {
+                // If it's a network error, the local update likely still happened or will happen.
+                // We show an error but don't necessarily treat it as a total failure if Room is updated.
+                val errorMessage = e.message ?: "Unknown error"
+                if (errorMessage.contains("UnknownHostException", ignoreCase = true)) {
+                    _error.postValue("Profile saved locally. Cloud sync will resume when online.")
+                    _syncState.postValue(UiState.Success(Unit)) // Allow navigation as Room is updated
+                } else {
+                    _error.postValue("Update failed: $errorMessage")
+                    _syncState.postValue(UiState.Error(errorMessage))
+                }
             }
         }
     }
@@ -141,11 +162,6 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
         }
     }
 
-    /**
-     * Post-login sync: pulls all playlists + songs from Firestore into Room.
-     * Exposes [UiState] so the UI can show a loading spinner during sync.
-     * Falls back gracefully — if offline or sync fails, Room cache is used.
-     */
     fun syncPlaylistsFromCloud(userId: String) {
         _syncState.postValue(UiState.Loading)
         viewModelScope.launch {
@@ -171,7 +187,7 @@ class MusicViewModel(private val repository: MusicRepository) : ViewModel() {
         playlistListenerRegistration = null
     }
 
-    /** Clears a shown error so it doesn't re-show after rotation / resubscription */
+    // Clears a shown error so it doesn't re-show after rotation
     fun clearError() {
         _error.value = null
     }

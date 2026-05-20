@@ -23,10 +23,10 @@ object CloudinaryUploader {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    /**
-     * Uploads the image at [uri] to Cloudinary and returns the secure https:// URL.
-     * Throws on failure so callers can catch and show a toast.
-     */
+
+     // Uploads the image at uri to Cloudinary and returns the secure URL.
+     // Throws on failure so callers can catch and show a toast.
+
     suspend fun upload(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalStateException("Could not read image from URI")

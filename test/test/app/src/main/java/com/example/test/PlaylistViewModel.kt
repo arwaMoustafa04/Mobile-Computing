@@ -36,14 +36,9 @@ class PlaylistViewModel : ViewModel() {
         _currentScreen.value = screen
     }
 
-    /**
-     * Main entry point:
-     * 1. Fetch the song catalogue from Firestore.
-     * 2. Send the user's prompt + rich metadata catalogue to OpenRouter AI.
-     * 3. AI returns the best-matching songs → shown to the user.
-     *
-     * If [existingSongs] is provided we skip the Firestore fetch.
-     */
+     // Fetch the song catalogue from Firestore.
+     // Send the user's prompt + rich metadata catalogue to OpenRouter AI.
+     // AI returns the best-matching songs → shown to the user.
     fun generatePlaylist(prompt: String, existingSongs: List<Song> = emptyList()) {
         _saveState.value = SaveState.Idle  // Reset save state on each new generation
         _currentScreen.value = "result"
@@ -83,10 +78,7 @@ class PlaylistViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Saves the currently generated playlist (with all its songs) into Room + Firestore
-     * so it appears in the user's regular playlist library.
-     */
+     //Saves the currently generated playlist (with all its songs) into Room + Firestore so it appears in the user's regular playlist library
     fun saveGeneratedPlaylist(
         context: android.content.Context,
         userId: String,
@@ -107,7 +99,7 @@ class PlaylistViewModel : ViewModel() {
                     id       = playlistId,
                     userId   = userId,
                     name     = playlistName,
-                    imageUrl = ""           // No cover — user can edit later
+                    imageUrl = ""           // No cover, user can edit later
                 )
                 repository.savePlaylist(playlist)
 

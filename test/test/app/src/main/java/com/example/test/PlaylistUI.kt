@@ -120,7 +120,7 @@ fun PromptScreen(onGenerateClicked: (String) -> Unit) {
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Main content area - Scrollable only if needed to prevent overflow on small screens
+            // Main content area, Scrollable only if needed to prevent overflow on small screens
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -169,7 +169,7 @@ fun PromptScreen(onGenerateClicked: (String) -> Unit) {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Prompt Input Card - Glassmorphism
+                // Prompt Input Card
                 Surface(
                     color = BgCard,
                     shape = RoundedCornerShape(20.dp),
@@ -212,7 +212,7 @@ fun PromptScreen(onGenerateClicked: (String) -> Unit) {
                         .padding(bottom = 12.dp)
                 )
 
-                // Grid of suggestions - Compact
+                // Grid of suggestions
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     suggestions.chunked(2).forEach { row ->
                         Row(
@@ -337,7 +337,7 @@ fun PlaylistResultScreen(
             }
 
             is UiState.Success -> {
-                // ── Enhanced Header ─────────────────────────────────────────────
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -402,7 +402,7 @@ fun PlaylistResultScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Play All - Primary Action
+                            // Play All
                             Button(
                                 onClick = { onPlaySong(state.songs, 0) },
                                 modifier = Modifier
@@ -416,7 +416,7 @@ fun PlaylistResultScreen(
                                 Text("Play All", color = BgDark, fontWeight = FontWeight.Bold)
                             }
 
-                            // Save - Secondary Action
+                            // Save
                             val isSaved = saveState is SaveState.Saved
                             val isSaving = saveState is SaveState.Saving
                             Button(
@@ -474,7 +474,7 @@ fun PlaylistResultScreen(
                 }
             }
 
-            is UiState.Idle -> { /* nothing */ }
+            is UiState.Idle -> {}
         }
     }
 }

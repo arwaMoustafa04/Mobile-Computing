@@ -39,14 +39,14 @@ object MusicPlayerManager {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val p = _player ?: return
 
-            // Check the song we are LEAVING
+            // Check the song we are leaving
             val idToRemove = lastMediaId
 
             // Set the new "last" to the song that just started
             lastMediaId = mediaItem?.mediaId
 
             if (idToRemove != null && idToRemove.startsWith(QUEUE_PREFIX)) {
-                // We only remove it if it's NOT the one currently playing
+                // We only remove it if it's not the one currently playing
                 if (idToRemove != mediaItem?.mediaId) {
                     removeMediaItemById(idToRemove)
                 }
@@ -103,7 +103,6 @@ object MusicPlayerManager {
         } catch (e: Exception) {
             Log.e(TAG, "Error during reset", e)
         }
-        // Clear all in-memory state
         activePlaybackList.clear()
         activePlaylistId  = null
         currentSong       = null
@@ -165,7 +164,7 @@ object MusicPlayerManager {
         val p = player
         activePlaylistId = playlistId
 
-        // 1. SAVE the existing queue items from the current timeline
+        // 1. save the existing queue items from the current timeline
         val existingQueueItems = mutableListOf<MediaItem>()
         for (i in 0 until p.mediaItemCount) {
             val item = p.getMediaItemAt(i)
@@ -180,14 +179,13 @@ object MusicPlayerManager {
         // 3. Replace the timeline with the new playlist
         p.setMediaItems(playlistItems, startIndex, 0L)
 
-        // 4. RE-INSERT the queue items at the end of the new timeline
+        // 4. re-insert the queue items at the end of the new timeline
         if (existingQueueItems.isNotEmpty()) {
             // Build the timeline so queue songs play immediately after the selected song:
-            // [selected song] [queue songs...] [remaining playlist songs...]
             val selectedItem  = playlistItems[startIndex]
             val beforeSelected = playlistItems.subList(0, startIndex)          // songs before tapped song
             val afterSelected  = playlistItems.subList(startIndex + 1, playlistItems.size) // songs after
-            // Full order: songs before | selected | queue | songs after
+
             val reordered = mutableListOf<MediaItem>()
             reordered.addAll(beforeSelected)
             reordered.add(selectedItem)
@@ -196,7 +194,7 @@ object MusicPlayerManager {
             // Start playback at the selected song's position in the reordered list
             p.setMediaItems(reordered, startIndex, 0L)
         } else {
-            // No queue — behave exactly as before
+            // No queue, behave exactly as before
             p.setMediaItems(playlistItems, startIndex, 0L)
         }
 
@@ -206,10 +204,7 @@ object MusicPlayerManager {
         syncWithPlayerTimeline()
     }
 
-    /**
-     * Appends a song to the end of the current player timeline.
-     * Useful when a song is added to the playlist that is currently playing.
-     */
+     // Appends a song to the end of the current player timeline, used when a song is added to the playlist that is currently playing.
     fun addSongToEnd(song: Song) {
         if (!isInitialized()) return
         val p = player
@@ -263,10 +258,8 @@ object MusicPlayerManager {
             val item = p.getMediaItemAt(i)
             val metadata = item.mediaMetadata
 
-            // CLEAN THE URL HERE
             val rawId = item.mediaId
             val cleanUrl = if (rawId.startsWith(QUEUE_PREFIX)) {
-                // Find the 3rd underscore (media_queue_timestamp_URL)
                 val first = rawId.indexOf("_")
                 val second = rawId.indexOf("_", first + 1)
                 val third = rawId.indexOf("_", second + 1)

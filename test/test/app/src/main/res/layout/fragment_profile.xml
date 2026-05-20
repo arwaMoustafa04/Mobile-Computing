@@ -41,15 +41,6 @@
                     android:textSize="@dimen/text_heading"
                     android:textStyle="bold"
                     android:layout_marginTop="@dimen/spacing_xl"/>
-
-                <TextView
-                    android:id="@+id/btnEditProfile"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/label_edit_profile"
-                    android:textColor="@color/white"
-                    android:textSize="@dimen/text_md"
-                    android:padding="@dimen/spacing_md"/>
             </LinearLayout>
 
             <LinearLayout
@@ -59,10 +50,11 @@
                 android:padding="@dimen/spacing_xl">
 
                 <TextView
+                    android:id="@+id/btnEditProfile"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:padding="@dimen/spacing_lg"
-                    android:text="@string/label_settings"
+                    android:text="@string/label_account_settings"
                     android:textColor="@color/white"
                     android:textSize="@dimen/text_xl" />
 

@@ -14,17 +14,16 @@ import java.net.URL
 object OpenRouterClient {
 
     private const val API_URL = "https://openrouter.ai/api/v1/chat/completions"
-    // You can swap this to any model on OpenRouter, e.g. "anthropic/claude-3-haiku"
     private const val MODEL   = "openai/gpt-4o-mini"
 
-    /** The AI-generated playlist name from the last successful call. */
+    // The AI-generated playlist name from the last successful call
     var lastPlaylistName: String = ""
         private set
 
-    /**
-     * Rich per-song metadata fed to the AI so it can match mood/genre/energy accurately.
-     * Keys are the lowercase decoded song titles.
-     */
+
+     // Rich per-song metadata fed to the AI so it can match mood/genre/energy accurately.
+     // Keys are the lowercase decoded song titles.
+
     data class SongMeta(
         val genres: List<String>,
         val moods:  List<String>,
